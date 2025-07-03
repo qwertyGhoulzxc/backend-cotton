@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String             @id @default(uuid())
+  email             String             @unique
+  password          String?
+  name              String?
+  provider          Provider?
+  isActivated       Boolean            @default(false) @map("is_activated")
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  tokens            Token[]
+  decks             Deck[]
+  deckCategories    DeckCategory[]
+  activationCode    ActivationCode?
+  resetPasswordCode ResetPasswordCode?
+
+  @@map("user")
+}
+
+model ActivationCode {
+  code      Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique @map("user_id")
+  expiresAt DateTime @default(now()) @map("expires_at")
+
+  @@map("activation_code")
+}
+
+model ResetPasswordCode {
+  code      Int
+  attempts  Int      @default(0)
+  expiresAt DateTime @map("expires_at")
+  userId    String   @unique @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("reset_password_code")
+}
+
+model Token {
+  token     String   @unique
+  exp       DateTime
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userAgent String   @map("user_agent")
+
+  @@map("token")
+}
+
+enum Provider {
+  GOOGLE
+}
+
+//deck
+
+model Deck {
+  id             String       @id @default(uuid())
+  name           String
+  description    String?
+  deckCategory   DeckCategory @relation(fields: [deckCategoryId], references: [id], onDelete: Cascade)
+  deckCategoryId String       @map("deck_category_id")
+  deckSession    DeckSession?
+  cardCount      Int          @default(0) @map("card_count")
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cards          Card[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@map("deck")
+}
+
+model DeckCategory {
+  id     String @id @default(uuid())
+  name   String
+  deck   Deck[]
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, name])
+  @@map("deck_category")
+}
+
+model DeckSession {
+  id        String   @id @default(uuid())
+  mastery   Int      @default(0)
+  totalTime Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deck      Deck     @relation(references: [id], fields: [deckId], onDelete: Cascade)
+  deckId    String   @unique
+
+  @@map("deck_session")
+}
+
+model Card {
+  id        String   @id @default(uuid())
+  question  String
+  answer    String
+  priority  Int      @default(1)
+  ef        Float    @default(2.5)
+  deckId    String
+  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("card")
+}
+
+// model Achievements {
+//   id        String   @id @default(uuid())
+//   studyTime DateTime
+//   cardsMastered Int
+
+// }
