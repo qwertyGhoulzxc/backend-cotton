@@ -86,7 +86,11 @@ export class AuthService {
       where: { token: refreshToken },
     });
     if (!token) throw new UnauthorizedException();
-    await this.prismaService.token.delete({ where: { token: refreshToken } });
+    await this.prismaService.token
+      .delete({ where: { token: refreshToken } })
+      .catch((err) => {
+        throw new UnauthorizedException();
+      });
     if (new Date(token.exp) < new Date()) {
       throw new UnauthorizedException();
     }

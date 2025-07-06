@@ -1,15 +1,19 @@
-import { DEFAULT_PAGINATION } from '@app/common/constants';
-import { CurrentUser } from '@app/common/decorators';
+import { ALLOWED_SORT_BY } from '@app/common/constants';
+import {
+  CurrentUser,
+  Pagination,
+  PaginationParams,
+} from '@app/common/decorators';
+import { ParseSortByPipe } from '@app/common/pipes';
 import { CardService } from '@card/card.service';
 import {
   Body,
   Controller,
-  DefaultValuePipe,
   Delete,
   Get,
   HttpStatus,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -34,6 +38,14 @@ export class DeckController {
     return this.deckService.createDeck(userId, dto);
   }
 
+  @Get('get-deck/:id')
+  public async getDeckById(
+    @CurrentUser('id') userId: string,
+    @Param('id', ParseUUIDPipe) deckId: string,
+  ) {
+    return this.deckService.getDeckById(userId, deckId);
+  }
+
   @Patch('update-deck')
   public async updateDeck(
     @Body() dto: UpdateDeckDto,
@@ -52,27 +64,17 @@ export class DeckController {
     return res.sendStatus(HttpStatus.OK);
   }
 
-  //TODO: pagination
   @Get('list-user-decks')
   public async listUserDecks(
     @CurrentUser('id') userId: string,
-    @Query('page', new DefaultValuePipe(DEFAULT_PAGINATION.page), ParseIntPipe)
-    page: number,
-    @Query(
-      'limit',
-      new DefaultValuePipe(DEFAULT_PAGINATION.limit),
-      ParseIntPipe,
-    )
-    limit: number,
-    @Query('categories') cat: string,
+    @Pagination() pagination: PaginationParams,
+    @Query('categories') _categories: string,
+    @Query('sortBy', ParseSortByPipe) sortBy: (typeof ALLOWED_SORT_BY)[number],
   ) {
-    console.log(cat);
+    const { limit, page } = pagination;
+    const categories = _categories ? _categories.split(',') : undefined;
+    const params = { page, limit, categories: categories, sortBy };
 
-    return this.deckService.listUserDecks(userId, page, limit);
-  }
-
-  @Get('list-deck-cards/:id')
-  public async getDeckCards(@Param('id') deckId: string) {
-    return this.cardService.listCards({ deckId });
+    return this.deckService.listUserDecks(userId, params);
   }
 }

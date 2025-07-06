@@ -3,6 +3,42 @@ import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
+const colorList = [
+  'red',
+  'blue',
+  'emerald',
+  'yellow',
+  'purple',
+  'pink',
+  'cyan',
+  'stone',
+];
+
+const iconList = [
+  'bot',
+  'food',
+  'music',
+  'ghost',
+  'movies',
+  'design',
+  'art',
+  'code',
+  'award',
+  'mail',
+  'math',
+  'activity',
+  'video',
+  'nature',
+  'mind',
+  'travel',
+  'car',
+  'bookOpen',
+];
+
+function getRandomIcon() {
+  return iconList[Math.floor(Math.random() * iconList.length)];
+}
+
 async function main() {
   console.log('Seeding started...');
 
@@ -42,10 +78,15 @@ async function main() {
   ];
 
   const user1Categories = [];
-  for (const name of user1CategoryNames) {
+  for (let i = 0; i < user1CategoryNames.length; i++) {
+    const name = user1CategoryNames[i];
+    const color = colorList[i % colorList.length];
+    const icon = getRandomIcon();
     const category = await prisma.deckCategory.create({
       data: {
         name,
+        color,
+        icon,
         user: {
           connect: { id: user1.id },
         },
@@ -66,10 +107,15 @@ async function main() {
   ];
 
   const user2Categories = [];
-  for (const name of user2CategoryNames) {
+  for (let i = 0; i < user2CategoryNames.length; i++) {
+    const name = user2CategoryNames[i];
+    const color = colorList[i % colorList.length];
+    const icon = getRandomIcon();
     const category = await prisma.deckCategory.create({
       data: {
         name,
+        color,
+        icon,
         user: {
           connect: { id: user2.id },
         },

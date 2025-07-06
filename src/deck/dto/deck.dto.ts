@@ -1,4 +1,13 @@
-import { IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsDefined,
+  IsOptional,
+  IsString,
+  Length,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+import { CategoryDto } from 'src/categories/dto';
 
 export class DeckDto {
   @IsString()
@@ -7,10 +16,11 @@ export class DeckDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(50)
+  @MaxLength(150)
   description: string;
 
-  @IsString()
-  @MaxLength(20)
-  category: string;
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CategoryDto)
+  category: CategoryDto;
 }

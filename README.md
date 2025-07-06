@@ -10,6 +10,7 @@ cards per session for every desk
 add categories
 //TODO:
 add entity session
+fix last studies
 
 for categories new table
 
@@ -23,11 +24,11 @@ data: { updatedAt: new Date() },
 
 //NOT MVP
 achivements
-set colors to the desks categories
-realize favorites maybe in the profile
+
+realize favorites maybe in the profile (add like default category)
 
 //client TODO:
 
-filters on the params like in next pizza 5:57 time
+- make pagination on categories and like infinity load
 
 - set timer on resend codes

@@ -8,5 +8,7 @@ export type TDeckWithSessionAndCategory = Deck & {
   };
   deckCategory: {
     name: string;
+    color: string;
+    icon: string;
   };
 };

@@ -14,8 +14,8 @@ model User {
   name              String?
   provider          Provider?
   isActivated       Boolean            @default(false) @map("is_activated")
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
   tokens            Token[]
   decks             Deck[]
   deckCategories    DeckCategory[]
@@ -71,8 +71,8 @@ model Deck {
   userId         String       @map("user_id")
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   cards          Card[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
 
   @@map("deck")
 }
@@ -80,12 +80,14 @@ model Deck {
 model DeckCategory {
   id     String @id @default(uuid())
   name   String
+  color  String @default("blue")
+  icon   String @default("bookOpen")
   deck   Deck[]
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String
+  userId String @map("user_id")
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@unique([userId, name])
   @@map("deck_category")
@@ -95,8 +97,8 @@ model DeckSession {
   id        String   @id @default(uuid())
   mastery   Int      @default(0)
   totalTime Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
   deck      Deck     @relation(references: [id], fields: [deckId], onDelete: Cascade)
   deckId    String   @unique
 
@@ -111,8 +113,8 @@ model Card {
   ef        Float    @default(2.5)
   deckId    String
   deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("card")
 }

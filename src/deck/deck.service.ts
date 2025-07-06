@@ -1,13 +1,22 @@
 import { TDeckWithSessionAndCategory } from '@app/@types';
+import { ALLOWED_SORT_BY } from '@app/common/constants';
 import { convertSecondsToReadableFormat } from '@app/common/utils';
 import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '@prisma/prisma.service';
 import { formatDistanceToNow } from 'date-fns';
 import { DeckDto, UpdateDeckDto } from './dto';
+
+type TSearchParams = {
+  page: number;
+  limit: number;
+  categories: string[] | undefined;
+  sortBy: (typeof ALLOWED_SORT_BY)[number];
+};
 
 @Injectable()
 export class DeckService {
@@ -17,15 +26,21 @@ export class DeckService {
     const category = await this.prismaService.deckCategory.upsert({
       where: {
         userId_name: {
-          name: dto.category,
+          name: dto.category.name,
           userId,
         },
       },
       create: {
         userId,
-        name: dto.category,
+        name: dto.category.name,
+        color: dto.category.color,
+        icon: dto.category.icon,
       },
-      update: {},
+      update: {
+        name: dto.category.name,
+        color: dto.category.color,
+        icon: dto.category.icon,
+      },
     });
     const deck = await this.prismaService.deck.create({
       data: {
@@ -39,6 +54,8 @@ export class DeckService {
         deckCategory: {
           select: {
             name: true,
+            color: true,
+            icon: true,
           },
         },
         deckSession: {
@@ -52,6 +69,30 @@ export class DeckService {
       },
     });
     if (!deck) throw new BadRequestException('Something went wrong');
+
+    return deck.id;
+  }
+
+  public async getDeckById(userId: string, deckId: string) {
+    const deck = await this.prismaService.deck.findFirst({
+      where: {
+        userId,
+        id: deckId,
+      },
+      include: {
+        deckCategory: { select: { name: true, color: true, icon: true } },
+        deckSession: {
+          select: {
+            mastery: true,
+            totalTime: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!deck) throw new BadRequestException("The deck doesn't exist");
 
     return this.deckRes(deck);
   }
@@ -67,7 +108,11 @@ export class DeckService {
     } = deck;
     return {
       ...dto,
-      category: deckCategory.name,
+      category: {
+        name: deck.deckCategory.name,
+        color: deck.deckCategory.color,
+        icon: deck.deckCategory.icon,
+      },
       mastery: deckSession.mastery,
       totalTime: convertSecondsToReadableFormat(deckSession.totalTime),
       lastStudied: this.lastStudied(
@@ -86,19 +131,23 @@ export class DeckService {
 
   public async getDeckCards() {}
 
-  public async listUserDecks(userId: string, page: number, limit: number) {
+  public async listUserDecks(
+    userId: string,
+    { categories, limit, page, sortBy }: TSearchParams,
+  ) {
+    const { orderBy, where } = this.prismaParamsFoFilter(userId, {
+      categories,
+      sortBy,
+    });
+
     const [decks, totalCount] = await Promise.all([
       this.prismaService.deck.findMany({
-        where: { userId },
+        where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
-          deckCategory: {
-            select: {
-              name: true,
-            },
-          },
+          deckCategory: { select: { name: true, color: true, icon: true } },
           deckSession: {
             select: {
               mastery: true,
@@ -109,12 +158,15 @@ export class DeckService {
           },
         },
       }),
-      this.prismaService.deck.count({
-        where: { userId },
-      }),
+      this.prismaService.deck.count({ where }),
     ]);
+
     if (!Array.isArray(decks))
       throw new InternalServerErrorException('Something went wrong');
+    console.log(
+      'Deck IDs:',
+      decks.map((d) => d.id),
+    );
 
     return {
       items: decks.map((val) => this.deckRes(val)),
@@ -123,6 +175,45 @@ export class DeckService {
       totalCount,
       totalPages: Math.ceil(totalCount / limit),
       hasNextPage: page * limit < totalCount,
+    };
+  }
+
+  private prismaParamsFoFilter(
+    userId: string,
+    { categories, sortBy }: Pick<TSearchParams, 'categories' | 'sortBy'>,
+  ) {
+    const where: Prisma.DeckWhereInput = {
+      userId,
+      ...(categories?.length
+        ? {
+            deckCategory: {
+              name: { in: categories },
+            },
+          }
+        : {}),
+    };
+
+    const orderBy = (() => {
+      switch (sortBy) {
+        case 'mastery':
+          return {
+            deckSession: { mastery: 'desc' as Prisma.SortOrder },
+          };
+        case 'cards':
+          return { cardCount: 'desc' as Prisma.SortOrder };
+        case 'alphabetical':
+          return { name: 'asc' as Prisma.SortOrder };
+        case 'newest':
+          return { createdAt: 'desc' as Prisma.SortOrder };
+        case 'recent':
+          return { deckSession: { updatedAt: 'desc' as Prisma.SortOrder } };
+        default:
+          return { updatedAt: 'desc' as Prisma.SortOrder };
+      }
+    })();
+    return {
+      where,
+      orderBy,
     };
   }
 
@@ -140,6 +231,8 @@ export class DeckService {
           deckCategory: {
             select: {
               name: true,
+              color: true,
+              icon: true,
             },
           },
           deckSession: {
