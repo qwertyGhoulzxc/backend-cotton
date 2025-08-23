@@ -1,22 +1,9 @@
 import { TDeckWithSessionAndCategory } from '@app/@types';
-import { ALLOWED_SORT_BY } from '@app/common/constants';
 import { convertSecondsToReadableFormat } from '@app/common/utils';
-import {
-  BadRequestException,
-  Injectable,
-  InternalServerErrorException,
-} from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@prisma/prisma.service';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { DeckDto, UpdateDeckDto } from './dto';
-
-type TSearchParams = {
-  page: number;
-  limit: number;
-  categories: string[] | undefined;
-  sortBy: (typeof ALLOWED_SORT_BY)[number];
-};
 
 @Injectable()
 export class DeckService {
@@ -80,7 +67,9 @@ export class DeckService {
         id: deckId,
       },
       include: {
-        deckCategory: { select: { name: true, color: true, icon: true } },
+        deckCategory: {
+          select: { id: true, name: true, color: true, icon: true },
+        },
         deckSession: {
           select: {
             mastery: true,
@@ -93,32 +82,30 @@ export class DeckService {
     });
 
     if (!deck) throw new BadRequestException("The deck doesn't exist");
-
-    return this.deckRes(deck);
+    const res = {
+      ...this.deckRes(deck),
+      createdAt: format(deck.createdAt, 'dd.MM.yyyy'),
+    };
+    return res;
   }
 
-  private deckRes(deck: TDeckWithSessionAndCategory) {
-    const {
-      updatedAt,
-      deckCategoryId,
-      userId,
-      deckSession,
-      deckCategory,
-      ...dto
-    } = deck;
+  public deckRes(deck: TDeckWithSessionAndCategory) {
+    const { id, name, description, cardCount } = deck;
+    const { mastery, totalTime, updatedAt } = deck.deckSession;
+
     return {
-      ...dto,
+      id,
+      name,
+      description,
+      cardCount,
       category: {
         name: deck.deckCategory.name,
         color: deck.deckCategory.color,
         icon: deck.deckCategory.icon,
       },
-      mastery: deckSession.mastery,
-      totalTime: convertSecondsToReadableFormat(deckSession.totalTime),
-      lastStudied: this.lastStudied(
-        deckSession.updatedAt,
-        deckSession.totalTime,
-      ),
+      mastery,
+      totalTime: convertSecondsToReadableFormat(totalTime),
+      lastStudied: this.lastStudied(updatedAt, totalTime),
     };
   }
 
@@ -129,94 +116,6 @@ export class DeckService {
     })}`;
   }
 
-  public async getDeckCards() {}
-
-  public async listUserDecks(
-    userId: string,
-    { categories, limit, page, sortBy }: TSearchParams,
-  ) {
-    const { orderBy, where } = this.prismaParamsFoFilter(userId, {
-      categories,
-      sortBy,
-    });
-
-    const [decks, totalCount] = await Promise.all([
-      this.prismaService.deck.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy,
-        include: {
-          deckCategory: { select: { name: true, color: true, icon: true } },
-          deckSession: {
-            select: {
-              mastery: true,
-              totalTime: true,
-              createdAt: true,
-              updatedAt: true,
-            },
-          },
-        },
-      }),
-      this.prismaService.deck.count({ where }),
-    ]);
-
-    if (!Array.isArray(decks))
-      throw new InternalServerErrorException('Something went wrong');
-    console.log(
-      'Deck IDs:',
-      decks.map((d) => d.id),
-    );
-
-    return {
-      items: decks.map((val) => this.deckRes(val)),
-      page,
-      limit,
-      totalCount,
-      totalPages: Math.ceil(totalCount / limit),
-      hasNextPage: page * limit < totalCount,
-    };
-  }
-
-  private prismaParamsFoFilter(
-    userId: string,
-    { categories, sortBy }: Pick<TSearchParams, 'categories' | 'sortBy'>,
-  ) {
-    const where: Prisma.DeckWhereInput = {
-      userId,
-      ...(categories?.length
-        ? {
-            deckCategory: {
-              name: { in: categories },
-            },
-          }
-        : {}),
-    };
-
-    const orderBy = (() => {
-      switch (sortBy) {
-        case 'mastery':
-          return {
-            deckSession: { mastery: 'desc' as Prisma.SortOrder },
-          };
-        case 'cards':
-          return { cardCount: 'desc' as Prisma.SortOrder };
-        case 'alphabetical':
-          return { name: 'asc' as Prisma.SortOrder };
-        case 'newest':
-          return { createdAt: 'desc' as Prisma.SortOrder };
-        case 'recent':
-          return { deckSession: { updatedAt: 'desc' as Prisma.SortOrder } };
-        default:
-          return { updatedAt: 'desc' as Prisma.SortOrder };
-      }
-    })();
-    return {
-      where,
-      orderBy,
-    };
-  }
-
   public async updateDeck(dto: UpdateDeckDto, userId: string) {
     const deck = await this.prismaService.deck
       .update({
@@ -225,7 +124,8 @@ export class DeckService {
           id: dto.deckId,
         },
         data: {
-          ...dto,
+          name: dto.name,
+          description: dto.description,
         },
         include: {
           deckCategory: {
@@ -250,23 +150,32 @@ export class DeckService {
       });
 
     if (!deck) throw new BadRequestException('No such user with this deck');
-    if (deck.deckCategory.name !== dto.category) {
+    if (deck.deckCategory !== dto.category) {
       const newCategory = await this.prismaService.deckCategory.upsert({
         where: {
           userId_name: {
-            name: dto.category,
+            name: dto.category.name,
             userId,
           },
         },
-        create: { name: dto.category, userId },
-        update: {},
+        create: {
+          name: dto.category.name,
+          color: dto.category.color,
+          icon: dto.category.icon,
+          userId,
+        },
+        update: {
+          name: dto.category.name,
+          color: dto.category.color,
+          icon: dto.category.icon,
+        },
       });
 
       await this.prismaService.deck.update({
         where: { id: deck.id },
         data: { deckCategoryId: newCategory.id },
       });
-      deck.deckCategory.name = dto.category;
+      deck.deckCategory = dto.category;
     }
     return this.deckRes(deck);
   }

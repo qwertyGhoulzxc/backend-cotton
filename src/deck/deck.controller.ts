@@ -1,18 +1,18 @@
-import { ALLOWED_SORT_BY } from '@app/common/constants';
 import {
-  CurrentUser,
-  Pagination,
-  PaginationParams,
-} from '@app/common/decorators';
-import { ParseSortByPipe } from '@app/common/pipes';
-import { CardService } from '@card/card.service';
+  ALLOWED_DECK_SORT_BY,
+  DEFAULT_PAGINATION,
+} from '@app/common/constants';
+import { CurrentUser, DeckCursor, TDeckCursor } from '@app/common/decorators';
+import { ParseDeckSortByPipe } from '@app/common/pipes';
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
   Get,
   HttpStatus,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Patch,
   Post,
@@ -22,12 +22,13 @@ import {
 import { Response } from 'express';
 import { DeckService } from './deck.service';
 import { DeckDto, UpdateDeckDto } from './dto';
+import { PrismaDeckPaginationService } from './prisma-deck.pagination.service';
 
 @Controller('deck')
 export class DeckController {
   constructor(
     private readonly deckService: DeckService,
-    private readonly cardService: CardService,
+    private readonly prismaDeckPaginationService: PrismaDeckPaginationService,
   ) {}
   //TODO: maybe automatically add cards with a creation
   @Post('create-deck')
@@ -51,6 +52,8 @@ export class DeckController {
     @Body() dto: UpdateDeckDto,
     @CurrentUser('id') userId: string,
   ) {
+    console.log(dto);
+
     return this.deckService.updateDeck(dto, userId);
   }
 
@@ -65,16 +68,26 @@ export class DeckController {
   }
 
   @Get('list-user-decks')
-  public async listUserDecks(
+  public async listUserDecksCursor(
     @CurrentUser('id') userId: string,
-    @Pagination() pagination: PaginationParams,
+    @Query(
+      'limit',
+      new DefaultValuePipe(DEFAULT_PAGINATION.limit),
+      ParseIntPipe,
+    )
+    limit: number,
     @Query('categories') _categories: string,
-    @Query('sortBy', ParseSortByPipe) sortBy: (typeof ALLOWED_SORT_BY)[number],
+    @Query('sortBy', ParseDeckSortByPipe)
+    sortBy: (typeof ALLOWED_DECK_SORT_BY)[number],
+    @DeckCursor('sortBy') cursor: TDeckCursor | null,
   ) {
-    const { limit, page } = pagination;
     const categories = _categories ? _categories.split(',') : undefined;
-    const params = { page, limit, categories: categories, sortBy };
 
-    return this.deckService.listUserDecks(userId, params);
+    return this.prismaDeckPaginationService.getDecksByCursor(userId, {
+      limit: limit,
+      sortBy,
+      categories,
+      cursor,
+    });
   }
 }

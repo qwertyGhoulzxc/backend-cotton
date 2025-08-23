@@ -1,4 +1,13 @@
-import { IsString, IsUUID, Length, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsDefined,
+  IsString,
+  IsUUID,
+  Length,
+  MaxLength,
+  ValidateNested,
+} from 'class-validator';
+import { CategoryDto } from 'src/categories/dto';
 
 export class UpdateDeckDto {
   @IsUUID()
@@ -12,7 +21,8 @@ export class UpdateDeckDto {
   @MaxLength(50)
   description: string;
 
-  @IsString()
-  @MaxLength(20)
-  category: string;
+  @IsDefined()
+  @ValidateNested()
+  @Type(() => CategoryDto)
+  category: CategoryDto;
 }

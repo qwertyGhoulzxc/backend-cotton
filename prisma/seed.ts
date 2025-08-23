@@ -39,16 +39,152 @@ function getRandomIcon() {
   return iconList[Math.floor(Math.random() * iconList.length)];
 }
 
-async function main() {
-  console.log('Seeding started...');
+function htmlToPlainText(html: string) {
+  if (!html) return '';
 
-  // 1. CLEANUP
+  let text = html;
+
+  // Normalize list items and line breaks
+  text = text.replace(/<li>/gi, '\n- ');
+  text = text.replace(/<\/li>/gi, '');
+  text = text.replace(/<br\s*\/?\s*>/gi, '\n');
+  text = text.replace(/<p[^>]*>/gi, '');
+  text = text.replace(/<\/p>/gi, '\n');
+  text = text.replace(/<blockquote[^>]*>/gi, '\n');
+  text = text.replace(/<\/blockquote>/gi, '\n');
+
+  // Remove remaining tags
+  text = text.replace(/<[^>]+>/g, '');
+
+  // Decode basic HTML entities
+  const entities: Record<string, string> = {
+    '&nbsp;': ' ',
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'",
+  };
+  for (const [entity, char] of Object.entries(entities)) {
+    text = text.replace(new RegExp(entity, 'g'), char);
+  }
+
+  // Collapse excessive whitespace/newlines
+  text = text.replace(/[\r\t]+/g, ' ');
+  text = text.replace(/\n{3,}/g, '\n\n');
+  text = text.replace(/ +/g, ' ');
+
+  return text.trim();
+}
+
+// FSRS random data
+function createChaoticFSRSCardData() {
+  const now = new Date();
+  const randomState = Math.floor(Math.random() * 4);
+  const randomDifficulty = 0.1 + Math.random() * 0.8;
+  const randomStability = Math.random() * 10;
+  const randomReps = Math.floor(Math.random() * 20);
+  const randomLapses = Math.floor(Math.random() * 5);
+
+  let dueDate = now;
+  let scheduledDays = 0;
+  let elapsedDays = 0;
+  let learningSteps = 0;
+
+  switch (randomState) {
+    case 0:
+      break;
+    case 1:
+      dueDate = new Date(now.getTime() + Math.random() * 24 * 60 * 60 * 1000);
+      scheduledDays = Math.floor(Math.random() * 2);
+      learningSteps = Math.floor(Math.random() * 3) + 1;
+      break;
+    case 2:
+      const daysAhead = Math.floor(randomStability * (1 + Math.random()));
+      dueDate = new Date(now.getTime() + daysAhead * 24 * 60 * 60 * 1000);
+      scheduledDays = daysAhead;
+      elapsedDays = Math.floor(Math.random() * 30);
+      break;
+    case 3:
+      dueDate = new Date(
+        now.getTime() + Math.random() * 2 * 24 * 60 * 60 * 1000,
+      );
+      scheduledDays = Math.floor(Math.random() * 2);
+      elapsedDays = Math.floor(Math.random() * 60);
+      learningSteps = Math.floor(Math.random() * 2) + 1;
+      break;
+  }
+
+  return {
+    due: dueDate,
+    stability: randomStability,
+    difficulty: randomDifficulty,
+    elapsed_days: elapsedDays,
+    scheduled_days: scheduledDays,
+    learning_steps: learningSteps,
+    reps: randomReps,
+    lapses: randomLapses,
+    state: randomState,
+    last_review:
+      randomState > 0
+        ? new Date(now.getTime() - Math.random() * 7 * 24 * 60 * 60 * 1000)
+        : null,
+  };
+}
+
+function createChaoticFSRSCardLogs(fsrsCardData: any) {
+  const logs = [];
+  const now = new Date();
+  const numLogs = Math.floor(Math.random() * 10) + 1;
+
+  for (let i = 0; i < numLogs; i++) {
+    const reviewDate = new Date(
+      now.getTime() - Math.random() * 30 * 24 * 60 * 60 * 1000,
+    );
+    const rating = Math.floor(Math.random() * 4) + 1;
+    const state = Math.floor(Math.random() * 4);
+    const logStability = Math.max(
+      0,
+      fsrsCardData.stability + (rating - 2) * 0.5,
+    );
+    const logDifficulty = Math.max(
+      0.1,
+      Math.min(0.9, fsrsCardData.difficulty + (rating - 2) * 0.1),
+    );
+
+    logs.push({
+      review: reviewDate,
+      rating,
+      state,
+      due: new Date(
+        reviewDate.getTime() + Math.random() * 7 * 24 * 60 * 60 * 1000,
+      ),
+      stability: logStability,
+      difficulty: logDifficulty,
+      elapsed_days: Math.floor(Math.random() * 30),
+      last_elapsed_days: Math.floor(Math.random() * 30),
+      scheduled_days: Math.floor(Math.random() * 10),
+      learning_steps: state === 1 ? Math.floor(Math.random() * 3) + 1 : 0,
+    });
+  }
+  return logs;
+}
+
+function mdQuestionAnswer(question: string, answer: string) {
+  return {
+    question: `<p>${question}</p>`,
+    answer: `<p>${answer}</p>`,
+    plainQuestion: htmlToPlainText(question),
+    plainAnswer: htmlToPlainText(answer),
+  };
+}
+
+async function main() {
   await prisma.user.deleteMany();
   await prisma.deckCategory.deleteMany();
-  console.log('Cleaned up existing data.');
 
-  // 2. CREATE USERS
   const hashedPassword = await bcrypt.hash('password123', 10);
+
   const user1 = await prisma.user.create({
     data: {
       email: 'user1@example.com',
@@ -65,529 +201,103 @@ async function main() {
       isActivated: true,
     },
   });
-  console.log(`Created users: ${user1.email}, ${user2.email}`);
 
-  // 3. CREATE CATEGORIES FOR USER 1
-  const user1CategoryNames = [
-    'Programming',
-    'Design',
-    'Language',
-    'Education',
-    'Science',
-    'History',
-  ];
-
-  const user1Categories = [];
-  for (let i = 0; i < user1CategoryNames.length; i++) {
-    const name = user1CategoryNames[i];
-    const color = colorList[i % colorList.length];
-    const icon = getRandomIcon();
-    const category = await prisma.deckCategory.create({
-      data: {
-        name,
-        color,
-        icon,
-        user: {
-          connect: { id: user1.id },
+  const user1Categories = await Promise.all(
+    ['Programming', 'Mathematics', 'Physics', 'Design', 'History'].map((name) =>
+      prisma.deckCategory.create({
+        data: {
+          name,
+          color: colorList[Math.floor(Math.random() * colorList.length)],
+          icon: getRandomIcon(),
+          userId: user1.id,
+          fsrsWeights: { create: { w: Array(17).fill(1) } },
         },
-      },
-    });
-    user1Categories.push(category);
+      }),
+    ),
+  );
+
+  const user2Categories = await Promise.all(
+    ['Biology', 'Art', 'Travel', 'Literature', 'Music'].map((name) =>
+      prisma.deckCategory.create({
+        data: {
+          name,
+          color: colorList[Math.floor(Math.random() * colorList.length)],
+          icon: getRandomIcon(),
+          userId: user2.id,
+          fsrsWeights: { create: { w: Array(17).fill(1) } },
+        },
+      }),
+    ),
+  );
+
+  function makeCardContent(topic: string, idx: number) {
+    return [
+      mdQuestionAnswer(
+        `Explain <strong>${topic}</strong> concept ${idx}`,
+        `Here is the detailed answer with <em>italic</em>, <strong>bold</strong>, <code>code()</code>, and formula <span data-latex="mc^2" data-evaluate="no" data-display="yes" data-type="inlineMath">$$mc^2$$</span>.`,
+      ),
+      mdQuestionAnswer(
+        `Show code for ${topic} ${idx}`,
+        `<pre><code class="language-javascript">function test(){ return '${topic}'; }</code></pre>`,
+      ),
+      mdQuestionAnswer(
+        `List facts about ${topic} ${idx}`,
+        `<ul><li>Fact 1</li><li>Fact 2</li></ul>`,
+      ),
+      mdQuestionAnswer(
+        `Quote about ${topic}`,
+        `<blockquote>"Knowledge about ${topic} is power."</blockquote>`,
+      ),
+    ];
   }
-  const user1CategoryMap = new Map(user1Categories.map((c) => [c.name, c.id]));
 
-  // CREATE CATEGORIES FOR USER 2
-  const user2CategoryNames = [
-    'Science',
-    'History',
-    'Literature',
-    'Mathematics',
-    'Programming',
-    'Design',
-  ];
+  async function createDecks(
+    userId: string,
+    categories: any[],
+    firstDeck7: boolean,
+  ) {
+    for (let i = 0; i < 10; i++) {
+      const category = categories[i % categories.length];
+      const numCards = firstDeck7 && i === 0 ? 7 : 3;
+      const cards = makeCardContent(category.name, i).slice(0, numCards);
 
-  const user2Categories = [];
-  for (let i = 0; i < user2CategoryNames.length; i++) {
-    const name = user2CategoryNames[i];
-    const color = colorList[i % colorList.length];
-    const icon = getRandomIcon();
-    const category = await prisma.deckCategory.create({
-      data: {
-        name,
-        color,
-        icon,
-        user: {
-          connect: { id: user2.id },
+      await prisma.deck.create({
+        data: {
+          name: `${category.name} Deck ${i + 1}`,
+          description: `A deck about ${category.name}`,
+          userId,
+          deckCategoryId: category.id,
+          cardCount: numCards,
+          deckSession: {
+            create: {
+              mastery: Math.floor(Math.random() * 100),
+              totalTime: Math.floor(Math.random() * 10000),
+            },
+          },
+          cards: {
+            create: cards.map((c) => {
+              const fsrs = createChaoticFSRSCardData();
+              return {
+                question: c.question,
+                answer: c.answer,
+                plainQuestion: c.plainQuestion,
+                plainAnswer: c.plainAnswer,
+                fsrsCard: {
+                  create: {
+                    ...fsrs,
+                    logs: { create: createChaoticFSRSCardLogs(fsrs) },
+                  },
+                },
+              };
+            }),
+          },
         },
-      },
-    });
-    user2Categories.push(category);
-  }
-  const user2CategoryMap = new Map(user2Categories.map((c) => [c.name, c.id]));
-
-  console.log('Created categories for both users.');
-
-  // 4. DECK DATA FOR USER 1
-  const user1DecksData = [
-    {
-      name: 'JavaScript Basics',
-      description: 'Core concepts of JavaScript',
-      categoryName: 'Programming',
-      session: { mastery: 85, totalTime: 7200 },
-      cards: [
-        {
-          question: 'What is a variable?',
-          answer: 'A container for storing data.',
-        },
-        {
-          question: 'Difference between let, const, and var?',
-          answer: 'Scope and re-assignability.',
-        },
-        {
-          question: 'What is a function?',
-          answer: 'A reusable block of code.',
-        },
-      ],
-    },
-    {
-      name: 'React Hooks',
-      description: 'Understanding React hooks',
-      categoryName: 'Programming',
-      session: { mastery: 92, totalTime: 3600 },
-      cards: [
-        {
-          question: 'What is useState?',
-          answer: 'A hook to add state to functional components.',
-        },
-        { question: 'What is useEffect?', answer: 'A hook for side effects.' },
-      ],
-    },
-    {
-      name: 'TypeScript Fundamentals',
-      description: 'Type safety and interfaces',
-      categoryName: 'Programming',
-      session: { mastery: 78, totalTime: 1800 },
-      cards: [
-        {
-          question: 'What is an interface?',
-          answer: 'A contract for the shape of an object.',
-        },
-        {
-          question: 'What is a generic?',
-          answer: 'Reusable components that work with a variety of types.',
-        },
-      ],
-    },
-    {
-      name: 'CSS Grid & Flexbox',
-      description: 'Modern CSS layout techniques',
-      categoryName: 'Design',
-      session: { mastery: 65, totalTime: 2700 },
-      cards: [
-        {
-          question: 'What is Flexbox for?',
-          answer: 'One-dimensional layouts (rows or columns).',
-        },
-        {
-          question: 'What is Grid for?',
-          answer: 'Two-dimensional layouts (rows and columns).',
-        },
-      ],
-    },
-    {
-      name: 'Web Design Principles',
-      description: 'Fundamental principles of good web design',
-      categoryName: 'Design',
-      session: { mastery: 58, totalTime: 900 },
-      cards: [
-        {
-          question: 'What is visual hierarchy?',
-          answer: 'Arrangement of elements to imply importance.',
-        },
-        {
-          question: 'What is white space?',
-          answer: 'The empty space between elements.',
-        },
-      ],
-    },
-    {
-      name: 'Spanish Vocabulary',
-      description: 'Essential Spanish words',
-      categoryName: 'Language',
-      session: { mastery: 45, totalTime: 1200 },
-      cards: [
-        { question: 'Hello', answer: 'Hola' },
-        { question: 'Goodbye', answer: 'Adiós' },
-        { question: 'Thank you', answer: 'Gracias' },
-      ],
-    },
-    {
-      name: 'French Basics',
-      description: 'Basic French phrases and vocabulary',
-      categoryName: 'Language',
-      session: { mastery: 32, totalTime: 800 },
-      cards: [
-        { question: 'Hello', answer: 'Bonjour' },
-        { question: 'Goodbye', answer: 'Au revoir' },
-        { question: 'Thank you', answer: 'Merci' },
-      ],
-    },
-    {
-      name: 'Math Formulas',
-      description: 'Essential algebra and calculus formulas',
-      categoryName: 'Education',
-      session: { mastery: 88, totalTime: 5000 },
-      cards: [
-        {
-          question: 'Quadratic formula?',
-          answer: 'x = [-b ± sqrt(b²-4ac)]/2a',
-        },
-        { question: 'Pythagorean theorem?', answer: 'a² + b² = c²' },
-      ],
-    },
-    {
-      name: 'Physics Concepts',
-      description: 'Fundamental concepts in physics',
-      categoryName: 'Education',
-      session: { mastery: 75, totalTime: 4500 },
-      cards: [
-        { question: "Newton's Second Law?", answer: 'F = ma' },
-        { question: "Einstein's mass-energy equivalence?", answer: 'E = mc²' },
-      ],
-    },
-    {
-      name: 'Chemistry Basics',
-      description: 'Basic chemistry concepts and elements',
-      categoryName: 'Science',
-      session: { mastery: 68, totalTime: 3200 },
-      cards: [
-        { question: 'What is the chemical symbol for gold?', answer: 'Au' },
-        { question: 'What is the chemical symbol for water?', answer: 'H₂O' },
-      ],
-    },
-    {
-      name: 'Biology Fundamentals',
-      description: 'Basic biology concepts',
-      categoryName: 'Science',
-      session: { mastery: 72, totalTime: 2800 },
-      cards: [
-        {
-          question: 'What is the powerhouse of the cell?',
-          answer: 'Mitochondria',
-        },
-        {
-          question: 'What is DNA?',
-          answer: 'Deoxyribonucleic acid - genetic material',
-        },
-      ],
-    },
-    {
-      name: 'Ancient Civilizations',
-      description: 'History of ancient civilizations',
-      categoryName: 'History',
-      session: { mastery: 55, totalTime: 1500 },
-      cards: [
-        {
-          question: 'Which civilization built the pyramids?',
-          answer: 'Ancient Egyptians',
-        },
-        {
-          question: 'Which empire was ruled by Julius Caesar?',
-          answer: 'Roman Empire',
-        },
-      ],
-    },
-    {
-      name: 'World Wars',
-      description: 'Key events of World War I and II',
-      categoryName: 'History',
-      session: { mastery: 48, totalTime: 2200 },
-      cards: [
-        { question: 'When did World War I start?', answer: '1914' },
-        { question: 'When did World War II end?', answer: '1945' },
-      ],
-    },
-  ];
-
-  // DECK DATA FOR USER 2
-  const user2DecksData = [
-    {
-      name: 'Physics Fundamentals',
-      description: 'Basic physics concepts and formulas',
-      categoryName: 'Science',
-      session: { mastery: 78, totalTime: 5400 },
-      cards: [
-        { question: "Newton's Second Law?", answer: 'F = ma' },
-        { question: "Einstein's mass-energy equivalence?", answer: 'E = mc²' },
-        {
-          question: 'What is gravity?',
-          answer: 'A force that attracts objects toward each other.',
-        },
-      ],
-    },
-    {
-      name: 'Chemistry Elements',
-      description: 'Periodic table and chemical elements',
-      categoryName: 'Science',
-      session: { mastery: 65, totalTime: 3800 },
-      cards: [
-        { question: 'What is the atomic number of hydrogen?', answer: '1' },
-        { question: 'What is the chemical symbol for oxygen?', answer: 'O' },
-        {
-          question: 'What is the most abundant element in the universe?',
-          answer: 'Hydrogen',
-        },
-      ],
-    },
-    {
-      name: 'World History',
-      description: 'Key events in world history',
-      categoryName: 'History',
-      session: { mastery: 62, totalTime: 3600 },
-      cards: [
-        { question: 'When did World War II end?', answer: '1945' },
-        {
-          question: 'Who was the first President of the United States?',
-          answer: 'George Washington',
-        },
-        {
-          question: 'What year did Columbus discover America?',
-          answer: '1492',
-        },
-      ],
-    },
-    {
-      name: 'Ancient Rome',
-      description: 'History of the Roman Empire',
-      categoryName: 'History',
-      session: { mastery: 58, totalTime: 2400 },
-      cards: [
-        { question: 'Who was the first Roman Emperor?', answer: 'Augustus' },
-        { question: 'What year did the Roman Empire fall?', answer: '476 AD' },
-        {
-          question: 'What was the capital of the Roman Empire?',
-          answer: 'Rome',
-        },
-      ],
-    },
-    {
-      name: 'Shakespeare Quotes',
-      description: 'Famous quotes from Shakespeare plays',
-      categoryName: 'Literature',
-      session: { mastery: 88, totalTime: 1800 },
-      cards: [
-        {
-          question: '"To be or not to be" is from which play?',
-          answer: 'Hamlet',
-        },
-        {
-          question: '"Romeo, Romeo, wherefore art thou Romeo?" is from?',
-          answer: 'Romeo and Juliet',
-        },
-        {
-          question: '"All the world\'s a stage" is from?',
-          answer: 'As You Like It',
-        },
-      ],
-    },
-    {
-      name: 'Classic Novels',
-      description: 'Famous novels and their authors',
-      categoryName: 'Literature',
-      session: { mastery: 75, totalTime: 2100 },
-      cards: [
-        { question: 'Who wrote "Pride and Prejudice"?', answer: 'Jane Austen' },
-        { question: 'Who wrote "1984"?', answer: 'George Orwell' },
-        {
-          question: 'Who wrote "The Great Gatsby"?',
-          answer: 'F. Scott Fitzgerald',
-        },
-      ],
-    },
-    {
-      name: 'Calculus Basics',
-      description: 'Fundamental calculus concepts',
-      categoryName: 'Mathematics',
-      session: { mastery: 71, totalTime: 4200 },
-      cards: [
-        {
-          question: 'What is a derivative?',
-          answer: 'The rate of change of a function.',
-        },
-        { question: 'What is an integral?', answer: 'The area under a curve.' },
-        {
-          question: 'What is the power rule for derivatives?',
-          answer: 'd/dx(x^n) = nx^(n-1)',
-        },
-      ],
-    },
-    {
-      name: 'Linear Algebra',
-      description: 'Matrices and vectors',
-      categoryName: 'Mathematics',
-      session: { mastery: 68, totalTime: 3500 },
-      cards: [
-        {
-          question: 'What is a matrix?',
-          answer: 'A rectangular array of numbers.',
-        },
-        {
-          question: 'What is a determinant?',
-          answer: 'A scalar value that can be computed from a square matrix.',
-        },
-        {
-          question: 'What is a vector?',
-          answer: 'A quantity with both magnitude and direction.',
-        },
-      ],
-    },
-    {
-      name: 'Python Programming',
-      description: 'Python programming fundamentals',
-      categoryName: 'Programming',
-      session: { mastery: 82, totalTime: 4800 },
-      cards: [
-        {
-          question: 'What is a list in Python?',
-          answer: 'An ordered collection of items.',
-        },
-        {
-          question: 'What is a dictionary in Python?',
-          answer: 'A collection of key-value pairs.',
-        },
-        { question: 'What is the Python equivalent of null?', answer: 'None' },
-      ],
-    },
-    {
-      name: 'Data Structures',
-      description: 'Common data structures and algorithms',
-      categoryName: 'Programming',
-      session: { mastery: 79, totalTime: 5200 },
-      cards: [
-        {
-          question: 'What is a stack?',
-          answer: 'A LIFO (Last In, First Out) data structure.',
-        },
-        {
-          question: 'What is a queue?',
-          answer: 'A FIFO (First In, First Out) data structure.',
-        },
-        {
-          question: 'What is a binary tree?',
-          answer: 'A tree data structure with at most two children per node.',
-        },
-      ],
-    },
-    {
-      name: 'UI/UX Design',
-      description: 'User interface and user experience design principles',
-      categoryName: 'Design',
-      session: { mastery: 73, totalTime: 3100 },
-      cards: [
-        {
-          question: 'What is UX design?',
-          answer: 'User Experience design focuses on user satisfaction.',
-        },
-        {
-          question: 'What is UI design?',
-          answer: 'User Interface design focuses on visual elements.',
-        },
-        {
-          question: 'What is wireframing?',
-          answer: 'Creating a basic layout of a design.',
-        },
-      ],
-    },
-    {
-      name: 'Color Theory',
-      description: 'Principles of color in design',
-      categoryName: 'Design',
-      session: { mastery: 66, totalTime: 1800 },
-      cards: [
-        {
-          question: 'What are primary colors?',
-          answer: 'Red, blue, and yellow.',
-        },
-        {
-          question: 'What is complementary color?',
-          answer: 'Colors opposite on the color wheel.',
-        },
-        { question: 'What is RGB?', answer: 'Red, Green, Blue color model.' },
-      ],
-    },
-  ];
-
-  // 5. CREATE DECKS FOR USER 1
-  for (const deckData of user1DecksData) {
-    const categoryId = user1CategoryMap.get(deckData.categoryName);
-    if (!categoryId) {
-      console.warn(
-        `Category "${deckData.categoryName}" not found for user 1. Skipping deck "${deckData.name}".`,
-      );
-      continue;
+      });
     }
-
-    await prisma.deck.create({
-      data: {
-        name: deckData.name,
-        description: deckData.description,
-        user: {
-          connect: { id: user1.id },
-        },
-        deckCategory: {
-          connect: { id: categoryId },
-        },
-        cardCount: deckData.cards.length,
-        cards: {
-          create: deckData.cards,
-        },
-        deckSession: {
-          create: deckData.session,
-        },
-      },
-    });
   }
 
-  // CREATE DECKS FOR USER 2
-  for (const deckData of user2DecksData) {
-    const categoryId = user2CategoryMap.get(deckData.categoryName);
-    if (!categoryId) {
-      console.warn(
-        `Category "${deckData.categoryName}" not found for user 2. Skipping deck "${deckData.name}".`,
-      );
-      continue;
-    }
-
-    await prisma.deck.create({
-      data: {
-        name: deckData.name,
-        description: deckData.description,
-        user: {
-          connect: { id: user2.id },
-        },
-        deckCategory: {
-          connect: { id: categoryId },
-        },
-        cardCount: deckData.cards.length,
-        cards: {
-          create: deckData.cards,
-        },
-        deckSession: {
-          create: deckData.session,
-        },
-      },
-    });
-  }
-
-  console.log('Created decks with cards and sessions for both users.');
+  await createDecks(user1.id, user1Categories, true);
+  await createDecks(user2.id, user2Categories, false);
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-    console.log('Seeding finished.');
-  });
+main().finally(() => prisma.$disconnect());

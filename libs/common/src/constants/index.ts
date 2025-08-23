@@ -5,13 +5,15 @@ export const DEFAULT_PAGINATION = {
   limit: 5,
 } as const;
 
-export const ALLOWED_SORT_BY = [
+export const ALLOWED_DECK_SORT_BY = [
   'recent',
   'mastery',
   'cards',
   'alphabetical',
   'newest',
 ] as const;
+
+export const ALLOWED_CARD_SORT_BY = ['newest', 'oldest', 'easiest', 'hardest'];
 
 export const ALLOWED_COLORS = [
   'red',

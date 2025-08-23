@@ -7,7 +7,6 @@ dto not using "," in category name
 .... think about changing complexity and algorithm on server or client implementation
 
 cards per session for every desk
-add categories
 //TODO:
 add entity session
 fix last studies

@@ -16,20 +16,20 @@ model User {
   isActivated       Boolean            @default(false) @map("is_activated")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
-  tokens            Token[]
+  activationCode    ActivationCode?
   decks             Deck[]
   deckCategories    DeckCategory[]
-  activationCode    ActivationCode?
   resetPasswordCode ResetPasswordCode?
+  tokens            Token[]
 
   @@map("user")
 }
 
 model ActivationCode {
   code      Int
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String   @unique @map("user_id")
   expiresAt DateTime @default(now()) @map("expires_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("activation_code")
 }
@@ -48,80 +48,129 @@ model Token {
   token     String   @unique
   exp       DateTime
   userId    String   @map("user_id")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userAgent String   @map("user_agent")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("token")
 }
-
-enum Provider {
-  GOOGLE
-}
-
-//deck
 
 model Deck {
   id             String       @id @default(uuid())
   name           String
   description    String?
-  deckCategory   DeckCategory @relation(fields: [deckCategoryId], references: [id], onDelete: Cascade)
-  deckCategoryId String       @map("deck_category_id")
-  deckSession    DeckSession?
   cardCount      Int          @default(0) @map("card_count")
+  deckCategoryId String       @map("deck_category_id")
   userId         String       @map("user_id")
-  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cards          Card[]
   createdAt      DateTime     @default(now()) @map("created_at")
   updatedAt      DateTime     @updatedAt @map("updated_at")
+  cards          Card[]
+  deckCategory   DeckCategory @relation(fields: [deckCategoryId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deckSession    DeckSession?
 
+  @@index([updatedAt, id])
+  @@index([createdAt, id])
+  @@index([cardCount, id])
+  @@index([name, id])
   @@map("deck")
 }
 
 model DeckCategory {
-  id     String @id @default(uuid())
-  name   String
-  color  String @default("blue")
-  icon   String @default("bookOpen")
-  deck   Deck[]
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @map("user_id")
-
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id          String       @id @default(uuid())
+  name        String
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+  userId      String       @map("user_id")
+  icon        String       @default("bookOpen")
+  color       String       @default("blue")
+  fsrsWeights FSRSWeights?
+  deck        Deck[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, name])
   @@map("deck_category")
 }
 
-model DeckSession {
-  id        String   @id @default(uuid())
-  mastery   Int      @default(0)
-  totalTime Int      @default(0)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  deck      Deck     @relation(references: [id], fields: [deckId], onDelete: Cascade)
-  deckId    String   @unique
+model FSRSWeights {
+  id         String       @id @default(uuid())
+  w          Json         @default("[1, 1, 5, 0.9, 0.4, 0.3, 2.4, 0.2, 1, 0.3, 1.4, 0.1, 0.2, 0.6, 1.8, 0.1, 0.1]")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  categoryId String       @unique @map("category_id")
+  category   DeckCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
+  @@map("FSRS_weights")
+}
+
+model DeckSession {
+  id              String   @id @default(uuid())
+  mastery         Int      @default(0)
+  totalTime       Int      @default(0)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  deckId          String   @unique @map("deck_id")
+  isShortTerm     Boolean  @default(false) @map("is_short_term")
+  cardsPerSession Int      @default(10) @map("cards_per_session")
+  deck            Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
+
+  @@index([mastery, deckId])
+  @@index([updatedAt, deckId])
   @@map("deck_session")
 }
 
 model Card {
-  id        String   @id @default(uuid())
-  question  String
-  answer    String
-  priority  Int      @default(1)
-  ef        Float    @default(2.5)
-  deckId    String
-  deck      Deck     @relation(fields: [deckId], references: [id], onDelete: Cascade)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id            String    @id @default(uuid())
+  question      String
+  answer        String
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deckId        String    @map("deck_id")
+  plainAnswer   String
+  plainQuestion String
+  fsrsCard      FSRSCard?
+  deck          Deck      @relation(fields: [deckId], references: [id], onDelete: Cascade)
 
+  @@index([createdAt, id])
   @@map("card")
 }
 
-// model Achievements {
-//   id        String   @id @default(uuid())
-//   studyTime DateTime
-//   cardsMastered Int
+model FSRSCard {
+  id             String        @id @default(uuid())
+  due            DateTime
+  stability      Float
+  difficulty     Float
+  elapsed_days   Int
+  scheduled_days Int
+  learning_steps Int
+  reps           Int
+  lapses         Int
+  state          Int
+  last_review    DateTime?
+  cardId         String        @unique @map("card_id")
+  card           Card          @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  logs           FSRSCardLog[]
 
-// }
+  @@index([difficulty, id])
+  @@map("FSRS_card")
+}
+
+model FSRSCardLog {
+  id                String   @id @default(uuid())
+  review            DateTime
+  rating            Int
+  state             Int
+  due               DateTime
+  stability         Float
+  difficulty        Float
+  elapsed_days      Int
+  last_elapsed_days Int
+  scheduled_days    Int
+  learning_steps    Int
+  fsrsCardId        String   @map("fsrs_card_id")
+  fsrsCard          FSRSCard @relation(fields: [fsrsCardId], references: [id], onDelete: Cascade)
+
+  @@map("FSRS_card_log")
+}
+
+enum Provider {
+  GOOGLE
+}

@@ -4,11 +4,12 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { CardModule } from './card/card.module';
+import { CategoriesModule } from './categories/categories.module';
 import { DeckModule } from './deck/deck.module';
+import { FsrsModule } from './fsrs/fsrs.module';
 import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
-import { CategoriesModule } from './categories/categories.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { CategoriesModule } from './categories/categories.module';
     DeckModule,
     CardModule,
     CategoriesModule,
+    FsrsModule,
   ],
   controllers: [],
   providers: [

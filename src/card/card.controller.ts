@@ -1,21 +1,27 @@
-import { CurrentUser } from '@app/common/decorators';
+import {
+  ALLOWED_CARD_SORT_BY,
+  DEFAULT_PAGINATION,
+} from '@app/common/constants';
+import { CardCursor, CurrentUser, TCardCursor } from '@app/common/decorators';
+import { ParseCardSortByPipe, TrimSearchPipe } from '@app/common/pipes';
 import {
   Body,
   Controller,
+  DefaultValuePipe,
   Delete,
+  Get,
   HttpStatus,
+  Param,
+  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Res,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { CardService } from './card.service';
-import {
-  CreateCardDto,
-  DeleteCardsDto,
-  UpdateCardDto,
-  updateCardsAfterSessionDto,
-} from './dto';
+import { CreateCardDto, DeleteCardsDto, UpdateCardDto } from './dto';
 
 @Controller('card')
 export class CardController {
@@ -27,6 +33,15 @@ export class CardController {
     @CurrentUser('id') userId: string,
   ) {
     return this.cardService.createCard(dto, userId);
+  }
+
+  @Get('get-card-by-id')
+  public async getCardById(
+    @Query('deckId', ParseUUIDPipe) deckId: string,
+    @Query('cardId', ParseUUIDPipe) cardId: string,
+    @CurrentUser('id') userId: string,
+  ) {
+    return this.cardService.getCardById(deckId, cardId, userId);
   }
 
   @Patch('update-card')
@@ -47,13 +62,27 @@ export class CardController {
     return res.sendStatus(HttpStatus.OK);
   }
 
-  @Patch('update-cards-after-session')
-  public async updateCardsAfterSession(
-    @Res() res: Response,
-    @Body() dto: updateCardsAfterSessionDto,
+  @Get('list-cards/:deckId')
+  public async listCards(
+    @Param('deckId', ParseUUIDPipe) deckId: string,
     @CurrentUser('id') userId: string,
+    @Query(
+      'limit',
+      new DefaultValuePipe(DEFAULT_PAGINATION.limit),
+      ParseIntPipe,
+    )
+    limit: number,
+    @Query('sortBy', ParseCardSortByPipe)
+    sortBy: (typeof ALLOWED_CARD_SORT_BY)[number],
+    @Query('search', TrimSearchPipe) search: string | null,
+    @CardCursor() cursor: TCardCursor | null,
   ) {
-    await this.cardService.updateCardsAfterSession(dto, userId);
-    return res.sendStatus(HttpStatus.OK);
+    const params = {
+      limit,
+      sortBy,
+      search,
+      cursor,
+    };
+    return this.cardService.listCards(userId, deckId, params);
   }
 }

@@ -1,4 +1,5 @@
-import { IsString, IsUUID, Length } from 'class-validator';
+import { ValidateHtmlLength } from '@app/common/decorators';
+import { IsString, IsUUID, MaxLength } from 'class-validator';
 
 export class UpdateCardDto {
   @IsUUID()
@@ -8,10 +9,12 @@ export class UpdateCardDto {
   deckId: string;
 
   @IsString()
-  @Length(1, 100)
+  @MaxLength(700)
+  @ValidateHtmlLength(1, 200)
   question: string;
 
   @IsString()
-  @Length(1, 100)
+  @MaxLength(700)
+  @ValidateHtmlLength(1, 200)
   answer: string;
 }

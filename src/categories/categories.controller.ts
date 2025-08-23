@@ -9,4 +9,6 @@ export class CategoriesController {
   public async listUserCategories(@CurrentUser('id') userId: string) {
     return this.categoriesService.listUserCategories(userId);
   }
+
+  
 }
