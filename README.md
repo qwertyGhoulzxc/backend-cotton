@@ -26,3 +26,11 @@ realize favorites maybe in the profile (add like default category)
 - make pagination on categories and like infinity load
 
 - set timer on resend codes
+
+PROD:
+license checking
+BSD 3-Clause License
+
+Copyright (c) 2023, Open Spaced Repetition
+
+end others

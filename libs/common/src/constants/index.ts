@@ -46,3 +46,5 @@ export const ALLOWED_ICONS = [
   'travel',
   'car',
 ];
+
+export const MIN_AMOUNT_OF_RECORDS_TO_TRAIN = 400 as const

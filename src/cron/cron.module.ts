@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
-import { MasteryService } from './mastery/mastery.service';
+import { MasteryScheduler } from './mastery/mastery.scheduler';
+import { WeightsScheduler } from './weights/weights.scheduler';
+import { WeightsService } from './weights/weights.service';
 
 @Module({
-  providers: [MasteryService]
+  providers: [MasteryScheduler, WeightsService, WeightsScheduler]
 })
 export class CronModule {}

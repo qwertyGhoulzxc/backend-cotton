@@ -3,10 +3,10 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '@prisma/prisma.service';
 
 @Injectable()
-export class MasteryService {
-	private readonly logger = new Logger(MasteryService.name);
+export class MasteryScheduler  {
+	private readonly logger = new Logger(MasteryScheduler.name);
 	constructor(private readonly prismaService:PrismaService) {}
-	
+
 	@Cron(CronExpression.EVERY_DAY_AT_1AM)
 	public async updateDeckMastery(){
 		this.logger.log('Updating all decks mastery');
