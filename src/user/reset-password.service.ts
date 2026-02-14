@@ -48,7 +48,7 @@ export class ResetPasswordService {
     this.logger.log(`Attempting to change password for user: ${userId}`);
     const user = await this.userService.findOne(userId);
 
-    if (!compareSync(dto.oldPassword, user.password) && user.password) {
+    if (user.password && !compareSync(dto.oldPassword, user.password)) {
       this.logger.warn(
         `Password change failed: Old password incorrect for user ${userId}`,
       );

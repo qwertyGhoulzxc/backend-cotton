@@ -1,4 +1,8 @@
-import { generateExpTime, generateSixDigitCode } from '@app/common/utils';
+import {
+  generateExpTime,
+  generateSixDigitCode,
+  generateUniqueUsername,
+} from '@app/common/utils';
 import { MailService } from '@mail/mail.service';
 import {
   BadRequestException,
@@ -33,13 +37,18 @@ export class AuthService {
 
   public async singUp(dto: SignUpDto) {
     this.logger.log(`Attempting to sign up user with email: ${dto.email}`);
-    const user = await this.prismaService.user.findFirst({
-      where: { email: dto.email },
+    const user = await this.prismaService.user.findMany({
+      where: {
+        OR: [
+          { email: dto.email.toLowerCase() },
+          { username: dto.username.toLowerCase() },
+        ],
+      },
     });
 
-    if (user) {
+    if (user.length) {
       this.logger.warn(
-        `Sign up failed: User with email ${dto.email} already exists`,
+        `Sign up failed: User with this data ${dto.email} or ${dto.username} already exists`,
       );
       throw new BadRequestException('Cannot sign up user with this data');
     }
@@ -58,15 +67,15 @@ export class AuthService {
   }
 
   public async signIn(dto: SignInDto, agent: string, res: Response) {
-    this.logger.log(`Attempting to sign in user: ${dto.email}`);
-    const user = await this.userService.findOne(dto.email);
+    this.logger.log(`Attempting to sign in user: ${dto.login}`);
+    const user = await this.userService.findOne(dto.login);
     if (!user) {
-      this.logger.warn(`Sign in failed: User not found for email ${dto.email}`);
+      this.logger.warn(`Sign in failed: User not found for login ${dto.login}`);
       throw new UnauthorizedException('Invalid email or password');
     }
     if (user.provider && !user.password) {
       this.logger.warn(
-        `Sign in failed: User ${dto.email} must use ${user.provider} provider`,
+        `Sign in failed: User ${dto.login} must use ${user.provider} provider`,
       );
       throw new BadRequestException(
         `Please use ${user.provider.toLowerCase()} to login`,
@@ -74,13 +83,13 @@ export class AuthService {
     }
 
     if (!user.password || !compareSync(dto.password, user.password)) {
-      this.logger.warn(`Sign in failed: Invalid password for ${dto.email}`);
+      this.logger.warn(`Sign in failed: Invalid password for ${dto.login}`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
     if (!user.isActivated) {
       this.logger.warn(
-        `Sign in failed: Account not activated for ${dto.email}`,
+        `Sign in failed: Account not activated for ${dto.login}`,
       );
       const activationCode = await this.prismaService.activationCode.findUnique(
         {
@@ -229,7 +238,7 @@ export class AuthService {
       'Bearer ' +
       this.jwtService.sign({
         id: user.id,
-        name: user.name,
+        username: user.username,
         isActivated: user.isActivated,
       });
     const refreshToken = await this.getRefreshToken(user.id, agent);
@@ -270,12 +279,13 @@ export class AuthService {
       );
       return this.generateTokens(userExist, agent);
     }
-    //generate username
-    //TODO:
+
+    const username = generateUniqueUsername();
     const { firstName, lastName, picture } = GoogleUser;
     const user = await this.userService.save(
       {
         email,
+        username: String(username),
         provider: Provider.GOOGLE,
         isActivated: Boolean(email_verified),
       },
