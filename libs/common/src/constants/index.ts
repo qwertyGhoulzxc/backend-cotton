@@ -5,6 +5,11 @@ export const DEFAULT_PAGINATION = {
   limit: 5,
 } as const;
 
+export const regexPatterns = {
+  username: /^(?!.*_{5,})[a-zA-Z0-9_]+$/,
+  email: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+} as const;
+
 export const ALLOWED_DECK_SORT_BY = [
   'recent',
   'mastery',
@@ -47,4 +52,4 @@ export const ALLOWED_ICONS = [
   'car',
 ];
 
-export const MIN_AMOUNT_OF_RECORDS_TO_TRAIN = 400 as const
+export const MIN_AMOUNT_OF_RECORDS_TO_TRAIN = 400 as const;

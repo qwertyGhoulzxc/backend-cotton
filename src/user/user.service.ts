@@ -36,7 +36,7 @@ export class UserService {
       const newUser = await this.prismaService.user.create({
         data: {
           email: user.email.toLowerCase(),
-          name: user.name,
+          username: user.username.toLowerCase(),
           password: null,
           provider: user?.provider,
           isActivated: user.isActivated,
@@ -49,7 +49,7 @@ export class UserService {
     const newUser = await this.prismaService.user.create({
       data: {
         email: user.email.toLowerCase(),
-        name: user.name,
+        username: user.username.toLowerCase(),
         password: hashPassword(user.password),
         activationCode: {
           create: {
@@ -68,29 +68,39 @@ export class UserService {
     return newUser;
   }
 
-  public async findOne(idOrEmail: string, isReset = false) {
+  public async findOne(idOrEmailOrUsername: string, isReset = false) {
     // Determine context for logging (don't log sensitive searches if any)
-    // Here idOrEmail is likely a User ID or Email, which is fine to log contextually
+    // Here idOrEmailOrUsername is likely a User ID or Email, which is fine to log contextually
     if (isReset) {
-      this.logger.debug(`Resetting cache before findOne for: ${idOrEmail}`);
-      await this.resetCache(idOrEmail);
+      this.logger.debug(
+        `Resetting cache before findOne for: ${idOrEmailOrUsername}`,
+      );
+      await this.resetCache(idOrEmailOrUsername);
     }
 
-    const cachedUser = await this.cacheManager.get<User>(idOrEmail);
+    const cachedUser = await this.cacheManager.get<User>(idOrEmailOrUsername);
     if (cachedUser) {
       return cachedUser;
     }
 
-    this.logger.debug(`Cache miss for user: ${idOrEmail}, fetching from DB`);
+    this.logger.debug(
+      `Cache miss for user: ${idOrEmailOrUsername}, fetching from DB`,
+    );
     const user = await this.prismaService.user.findFirst({
-      where: { OR: [{ id: idOrEmail }, { email: idOrEmail.toLowerCase() }] },
+      where: {
+        OR: [
+          { id: idOrEmailOrUsername },
+          { email: idOrEmailOrUsername.toLowerCase() },
+          { username: idOrEmailOrUsername.toLocaleLowerCase() },
+        ],
+      },
     });
     if (!user) {
-      this.logger.warn(`User not found: ${idOrEmail}`);
+      this.logger.warn(`User not found: ${idOrEmailOrUsername}`);
       return null;
     }
     await this.cacheManager.set(
-      idOrEmail,
+      idOrEmailOrUsername,
       user,
       convertToSecondsUtil(this.configService.get('JWT_EXP')),
     );
@@ -112,7 +122,7 @@ export class UserService {
         ...dto,
       },
     });
-    await this.resetCache([userId, user.email]);
+    await this.resetCache([userId, user.email, user.username]);
     this.logger.log(`User data updated and cache reset for: ${userId}`);
     return user;
   }
@@ -128,7 +138,7 @@ export class UserService {
       );
     }
     const _user = await this.prismaService.user.delete({ where: { id } });
-    await this.resetCache([_user.email, id]);
+    await this.resetCache([_user.email, id, _user.username]);
     this.logger.log(`User deleted successfully: ${id}`);
     return _user.id;
   }

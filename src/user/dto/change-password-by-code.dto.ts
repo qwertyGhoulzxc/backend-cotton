@@ -1,8 +1,8 @@
 import { IsPasswordsMatchingConstraint } from '@app/common/decorators';
 import {
-  IsEmail,
   IsString,
   IsStrongPassword,
+  IsUUID,
   Length,
   MaxLength,
   MinLength,
@@ -10,9 +10,8 @@ import {
 } from 'class-validator';
 
 export class ChangePasswordByCodeDto {
-  @IsString()
-  @IsEmail()
-  email: string;
+  @IsUUID()
+  userId: string;
 
   @IsString()
   @Length(6, 6)

@@ -1,8 +1,9 @@
-import { IsEmail, IsString, Length } from 'class-validator';
+import { IsNotEmpty, IsString, Length } from 'class-validator';
 
 export class IsValidResetPasswordCode {
-  @IsEmail()
-  email: string;
+  @IsString()
+  @IsNotEmpty()
+  usernameOrEmail: string;
 
   @IsString()
   @Length(6, 6)

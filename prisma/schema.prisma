@@ -11,35 +11,30 @@ model User {
   id                String             @id @default(uuid())
   email             String             @unique
   password          String?
-  name              String?
   provider          Provider?
   isActivated       Boolean            @default(false) @map("is_activated")
   createdAt         DateTime           @default(now()) @map("created_at")
   updatedAt         DateTime           @updatedAt @map("updated_at")
+  username          String             @unique
   activationCode    ActivationCode?
   decks             Deck[]
   deckCategories    DeckCategory[]
+  profile           Profile?
   resetPasswordCode ResetPasswordCode?
   tokens            Token[]
-  profile           Profile?
 
   @@map("user")
 }
 
-enum Provider {
-  GOOGLE
-}
-
 model Profile {
   id         String   @id @default(uuid())
-  firstName  String   @default("") @map("first_name")
-  lastName   String   @default("") @map("last_name")
   avatarPath String   @default("avatar/defaultAvatar.jpg") @map("avatar_path")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId String @unique @map("user_id")
+  userId     String   @unique @map("user_id")
+  firstName  String   @default("") @map("first_name")
+  lastName   String   @default("") @map("last_name")
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("profile")
 }
@@ -154,7 +149,6 @@ model Card {
   @@map("card")
 }
 
-//maybe add deckId in future for better productivity
 model FSRSCard {
   id             String        @id @default(uuid())
   due            DateTime
@@ -197,4 +191,8 @@ model FSRSCardLog {
   @@index([review])
   @@index([fsrsCardId, review])
   @@map("FSRS_card_log")
+}
+
+enum Provider {
+  GOOGLE
 }

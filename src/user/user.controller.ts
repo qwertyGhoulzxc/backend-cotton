@@ -1,116 +1,155 @@
 import { UserWithResetPasswordCode } from '@app/@types';
 import { CurrentUser, Public, UserAgent } from '@app/common/decorators';
+import { ThrottlerGuard } from '@app/common/guards';
+import { maskEmail } from '@app/common/utils';
+import { validateIsUsernameOrEmail } from '@app/common/validators';
 import { JwtPayload } from '@auth/interfaces';
 import { MailService } from '@mail/mail.service';
 import {
+  BadRequestException,
   Body,
+  ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
-  HttpStatus,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
-  Put,
   Res,
+  UseGuards,
+  UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import { plainToClass } from 'class-transformer';
 import { Response } from 'express';
 import {
-  ChangePasswordByCodeDto,
-  ChangePasswordDto,
-  ChangeUserDataDto,
-  IsValidResetPasswordCode,
+  IsValidResetPasswordCode as IsValidCodeDto,
+  ChangePasswordByCodeDto as ResetPasswordByCodeDto,
+  ChangePasswordDto as UpdatePasswordDto,
+  ChangeUserDataDto as UpdateUserDto,
 } from './dto';
 import { ResetPasswordService } from './reset-password.service';
 import { UserResponse } from './responses';
 import { UserService } from './user.service';
 
+@UsePipes(new ValidationPipe())
 @Controller('user')
 export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly resetPasswordService: ResetPasswordService,
     private readonly mailService: MailService,
+    private readonly configService: ConfigService,
   ) {}
 
-  // TODO: change token
-  @Patch('change-user-data')
-  public async changeUserData(
-    @Body() dto: ChangeUserDataDto,
-    @CurrentUser('id') userId: string,
-  ) {
-    const user = await this.userService.changeUserData(dto, userId);
-    return plainToClass(UserResponse, user);
+  @Get('get-me')
+  public async getMe(@CurrentUser() user: JwtPayload) {
+    return this.userService.findOne(user.id);
   }
 
   @Delete(':id')
   public async deleteUser(
-    @Param('id') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.userService.delete(userId, user);
+    return this.userService.delete(id, user);
   }
 
-  //TODO: Thing about data that going to be in the page me
-  @Get('me')
-  public async getMe(@CurrentUser('id') userId: string) {
-    const user = this.userService.findOne(userId);
-    return plainToClass(UserResponse, user);
+  // NOTE: IsActivatedGuard removed as per user instruction "doesnt use it"
+  @UseInterceptors(ClassSerializerInterceptor)
+  @UsePipes(new ValidationPipe())
+  @Patch('update-user')
+  public async updateUser(
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdateUserDto,
+  ) {
+    // Adapter for existing service method signature
+    const _user = await this.userService.changeUserData(dto, user.id);
+    return plainToClass(UserResponse, _user);
   }
 
-  // password
-
-  @Put('change-password')
+  // NOTE: IsActivatedGuard removed as per user instruction "doesnt use it"
+  @UsePipes(new ValidationPipe())
+  @Patch('change-password')
   public async changePassword(
-    @Body() dto: ChangePasswordDto,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: JwtPayload,
+    @Body() dto: UpdatePasswordDto,
     @UserAgent() agent: string,
     @Res() res: Response,
   ) {
-    await this.resetPasswordService.changePassword(dto, userId, agent);
-    return res.sendStatus(HttpStatus.OK);
+    await this.resetPasswordService.changePassword(dto, user.id, agent);
+    return res.status(201).json('password successfully changed');
+  }
+  //all requests below are public
+
+  @Public()
+  @Get(':ieu')
+  public async findOneUser(@Param('ieu') ieu: string) {
+    return this.userService.findOne(ieu);
   }
 
-  // public
   @Public()
-  @Get('get-reset-password-code/:email')
+  @Get('get-reset-password-code/:param')
   public async getResetPasswordCode(
-    @Param('email') email: string,
+    @Param('param') usernameOrEmail: string,
     @Res() res: Response,
   ) {
-    const user =
-      await this.resetPasswordService.generateResetPasswordCode(email);
-    if (!user || !user?.id) {
-      return res.sendStatus(HttpStatus.OK);
-    }
-    const _user = user as UserWithResetPasswordCode;
+    validateIsUsernameOrEmail(usernameOrEmail);
+    const user = await this.resetPasswordService.generateResetPasswordCode(
+      usernameOrEmail,
+      res,
+    );
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    //@ts-expect-error
+    //FIXME: typescript
+    if (!user || !user?.id) return;
 
+    const _user = user as UserWithResetPasswordCode;
+    // const url = `${this.configService.get('CLIENT_URL')}/reset-password-by-code?userId=${_user.id}&code=${_user.resetPasswordCode.code}`;
+    // await this.mailService.sendResetPasswordLink(_user, url);
     await this.mailService.sendResetPasswordCodeEmail(
       _user.email,
       _user.resetPasswordCode.code,
     );
 
-    return res.sendStatus(HttpStatus.OK);
+    if (usernameOrEmail === _user.email)
+      res.status(201).json({ usernameOrEmail, email: _user.email });
+    else
+      res.status(201).json({ usernameOrEmail, email: maskEmail(_user.email) });
   }
 
   @Public()
-  @Post('reset-password-by-code/isValid')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60 * 2000 } })
+  @Post('reset-password-by-code/is-valid')
   public async accessToChangePasswordByCode(
-    @Body() dto: IsValidResetPasswordCode,
+    @Body() dto: IsValidCodeDto,
     @Res() res: Response,
   ) {
-    const obj = await this.resetPasswordService.isValid(dto);
-    return res.sendStatus(HttpStatus.OK).json(obj);
+    if (String(dto.code).length !== 6)
+      throw new BadRequestException('Code must include 6 digits');
+    validateIsUsernameOrEmail(dto.usernameOrEmail);
+
+    const isValid = await this.resetPasswordService.isValid(
+      { code: String(dto.code), usernameOrEmail: dto.usernameOrEmail },
+      res,
+    );
+    res.status(201).json(isValid);
   }
 
   @Public()
-  @Put('change-password-by-code')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 60 * 3000 } })
+  @Patch('reset-password-by-code')
   public async changePasswordByCode(
-    @Body() dto: ChangePasswordByCodeDto,
+    @Body() dto: ResetPasswordByCodeDto,
     @Res() res: Response,
   ) {
-    await this.resetPasswordService.changePasswordByCode(dto);
-    return res.sendStatus(HttpStatus.OK);
+    await this.resetPasswordService.changePasswordByCode(dto, res);
+    res.status(201).json({});
   }
 }

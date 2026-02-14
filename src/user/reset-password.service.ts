@@ -1,9 +1,13 @@
 import { UserWithResetPasswordCode } from '@app/@types';
-import { MAX_RESET_PASSWORD_ATTEMPTS } from '@app/common/constants';
+import {
+  MAX_RESET_PASSWORD_ATTEMPTS,
+  regexPatterns,
+} from '@app/common/constants';
 import {
   generateExpTime,
   generateSixDigitCode,
   hashPassword,
+  maskEmail,
 } from '@app/common/utils';
 import { MailService } from '@mail/mail.service';
 import {
@@ -18,6 +22,7 @@ import {
 import { PrismaService } from '@prisma/prisma.service';
 import { compareSync } from 'bcrypt';
 import { isBefore } from 'date-fns';
+import { Response } from 'express';
 import {
   ChangePasswordByCodeDto,
   ChangePasswordDto,
@@ -43,7 +48,7 @@ export class ResetPasswordService {
     this.logger.log(`Attempting to change password for user: ${userId}`);
     const user = await this.userService.findOne(userId);
 
-    if (!compareSync(user.password, dto.oldPassword) && user.password) {
+    if (!compareSync(dto.oldPassword, user.password) && user.password) {
       this.logger.warn(
         `Password change failed: Old password incorrect for user ${userId}`,
       );
@@ -71,15 +76,36 @@ export class ResetPasswordService {
   }
 
   public async generateResetPasswordCode(
-    email: string,
-  ): Promise<UserWithResetPasswordCode | undefined> {
-    this.logger.log(`Generating reset password code for: ${email}`);
-    const user = await this.userService.findOne(email);
-    if (!user) {
+    usernameOrEmail: string,
+    res?: Response,
+  ): Promise<UserWithResetPasswordCode | Response> {
+    this.logger.log(`Generating reset password code for: ${usernameOrEmail}`);
+    const user = await this.userService.findOne(usernameOrEmail);
+
+    if (!user && regexPatterns.email.test(usernameOrEmail)) {
       this.logger.warn(
-        `Reset code generation failed: User not found for email ${email}`,
+        `Reset code generation failed: User not found for email ${usernameOrEmail}`,
       );
-      return undefined;
+      // If res is provided, return response, otherwise strict return type might be issue but controller handles it
+      if (res) {
+        return res
+          .status(201)
+          .json({ usernameOrEmail, email: maskEmail(usernameOrEmail) });
+      }
+    }
+
+    if (!user && !regexPatterns.email.test(usernameOrEmail))
+      throw new BadRequestException('Invalid email or username');
+
+    if (!user) {
+      // Should not be reached if handled above, but for safety
+      throw new BadRequestException('User not found');
+    }
+
+    if (!user.isActivated) {
+      //TODO: Implement activation mail if needed, currently just logging
+      this.logger.warn(`User ${user.id} is not activated`);
+      // await this.mailService.sendActivationMail()
     }
 
     const _resetCode = await this.prismaService.resetPasswordCode.findFirst({
@@ -128,33 +154,46 @@ export class ResetPasswordService {
     };
   }
 
-  public async isValid(dto: IsValidResetPasswordCode) {
-    this.logger.log(`Validating reset password code for: ${dto.email}`);
-    const user = await this.userService.findOne(dto.email);
+  public async isValid(dto: IsValidResetPasswordCode, res?: Response) {
+    this.logger.log(
+      `Validating reset password code for: ${dto.usernameOrEmail}`,
+    );
+    const user = await this.userService.findOne(dto.usernameOrEmail);
+
     if (!user) {
       this.logger.warn(
-        `Validation failed: User not found for email ${dto.email}`,
+        `Validation failed: User not found for ${dto.usernameOrEmail}`,
       );
-      throw new BadRequestException('Invalid code, try again');
+      throw new BadRequestException('Invalid email or username');
     }
+
     const code = this.isNumberCode(dto.code);
-    await this.checkIsValidCode(user.id, dto.email, code);
+    await this.checkIsValidCode(
+      { userId: user.id, code, email: user.email },
+      res,
+    );
     this.logger.log(`Reset code validated successfully for user: ${user.id}`);
     return { userId: user.id, code: dto.code };
   }
 
-  public async changePasswordByCode(dto: ChangePasswordByCodeDto) {
-    this.logger.log(`Changing password by code for: ${dto.email}`);
-    const user = await this.userService.findOne(dto.email);
+  public async changePasswordByCode(
+    dto: ChangePasswordByCodeDto,
+    res?: Response,
+  ) {
+    this.logger.log(`Changing password by code for: ${dto.userId}`);
+    const user = await this.userService.findOne(dto.userId);
     if (!user) {
       this.logger.warn(
-        `Change password failed: User not found for email ${dto.email}`,
+        `Change password failed: User not found for id ${dto.userId}`,
       );
       throw new BadRequestException('Invalid email or code');
     }
     const code = this.isNumberCode(dto.code);
 
-    await this.checkIsValidCode(user.id, user.email, code);
+    await this.checkIsValidCode(
+      { userId: user.id, email: user.email, code },
+      res,
+    );
     await Promise.all([
       this.prismaService.user.update({
         where: {
@@ -162,6 +201,11 @@ export class ResetPasswordService {
         },
         data: {
           password: hashPassword(dto.password),
+        },
+      }),
+      this.prismaService.resetPasswordCode.delete({
+        where: {
+          userId: user.id,
         },
       }),
       this.prismaService.token.deleteMany({
@@ -175,7 +219,18 @@ export class ResetPasswordService {
     );
   }
 
-  private async checkIsValidCode(userId: string, email: string, code: number) {
+  private async checkIsValidCode(
+    {
+      userId,
+      email,
+      code,
+    }: {
+      userId: string;
+      email: string;
+      code: number;
+    },
+    res?: Response,
+  ) {
     const data = await this.prismaService.resetPasswordCode.findFirst({
       where: {
         userId,
@@ -190,12 +245,18 @@ export class ResetPasswordService {
     const { code: resetCode, expiresAt, attempts } = data;
     if (!isBefore(new Date(), expiresAt)) {
       this.logger.log(`Code expired for user ${userId}, generating new code`);
-      const newCode = await this.generateResetPasswordCode(email);
-      if (!newCode) throw new BadRequestException();
-      await this.mailService.sendResetPasswordCodeEmail(
-        newCode.email,
-        newCode.resetPasswordCode.code,
-      );
+      const newCode = (await this.generateResetPasswordCode(
+        email,
+        res,
+      )) as UserWithResetPasswordCode;
+
+      if (newCode && newCode.resetPasswordCode) {
+        await this.mailService.sendResetPasswordCodeEmail(
+          newCode.email,
+          newCode.resetPasswordCode.code,
+        );
+      }
+
       throw new BadRequestException(
         'The verification code has expired. Please check your email and enter the new code.',
       );

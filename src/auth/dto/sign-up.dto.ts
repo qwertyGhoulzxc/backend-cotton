@@ -1,8 +1,10 @@
+import { regexPatterns } from '@app/common/constants';
 import { IsPasswordsMatchingConstraint } from '@app/common/decorators';
 import {
   IsEmail,
   IsString,
   IsStrongPassword,
+  Matches,
   MaxLength,
   MinLength,
   Validate,
@@ -28,7 +30,11 @@ export class SignUpDto {
   passwordRepeat: string;
 
   @IsString()
-  @MinLength(1, { message: 'Name must be at least 1 character long' })
-  @MaxLength(20, { message: 'Name cannot be longer than 20 characters' })
-  name: string;
+  @MinLength(3, { message: 'Username must be at least 3 characters long' })
+  @Matches(regexPatterns.username, {
+    message:
+      'The string must contain only Latin letters and up to 5 underscores',
+  })
+  @MaxLength(20, { message: 'Username cannot be longer than 20 characters' })
+  username: string;
 }

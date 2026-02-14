@@ -33,6 +33,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/schedule": "^6.1.1",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.9.0",
     "@types/bcrypt": "^5.0.2",
     "@types/cookie-parser": "^1.4.9",
@@ -112,10 +113,21 @@
       "<rootDir>/libs/"
     ],
     "moduleNameMapper": {
-      "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1"
+      "^@app/common(|/.*)$": "<rootDir>/libs/common/src/$1",
+      "^@user(|/.*)$": "<rootDir>/src/user/$1",
+      "^@auth(|/.*)$": "<rootDir>/src/auth/$1",
+      "^@mail(|/.*)$": "<rootDir>/src/mail/$1",
+      "^@deck(|/.*)$": "<rootDir>/src/deck/$1",
+      "^@card(|/.*)$": "<rootDir>/src/card/$1",
+      "^@cron(|/.*)$": "<rootDir>/src/cron/$1",
+      "^@app/@types(|/.*)$": "<rootDir>/@types/$1",
+      "^@prisma$": "<rootDir>/src/prisma",
+      "^@prisma/(?!client)(.*)$": "<rootDir>/src/prisma/$1"
     }
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
   }
 }
+
+

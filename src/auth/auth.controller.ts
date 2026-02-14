@@ -1,5 +1,6 @@
 import { Cookie, Public, UserAgent } from '@app/common/decorators';
-import { handleTimeoutAndErrors, validateEmail } from '@app/common/utils';
+import { handleTimeoutAndErrors } from '@app/common/utils';
+import { validateEmail } from '@app/common/validators';
 import { HttpService } from '@nestjs/axios';
 import {
   BadRequestException,
