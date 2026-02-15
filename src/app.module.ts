@@ -13,6 +13,8 @@ import { FsrsModule } from './fsrs/fsrs.module';
 import { MailModule } from './mail/mail.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
+import { UploadModule } from './upload/upload.module';
+import { ProfileModule } from './profile/profile.module';
 
 @Module({
   imports: [
@@ -35,6 +37,8 @@ import { UserModule } from './user/user.module';
     CategoriesModule,
     FsrsModule,
     CronModule,
+    UploadModule,
+    ProfileModule,
   ],
   controllers: [],
   providers: [

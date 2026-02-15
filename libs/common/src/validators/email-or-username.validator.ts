@@ -14,6 +14,7 @@ export class IsUsernameOrEmailConstraint
   implements ValidatorConstraintInterface
 {
   validate(value: string, args: ValidationArguments) {
+    if (!value) return false;
     if (
       value.length >= 3 &&
       value.length <= 20 &&

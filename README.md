@@ -16,9 +16,6 @@ develop settings page()
 fix decs blinking loading for decks and all cards
 develop strategy of notification
 
-TODO: BACKEND:
-ADD USERNAME IN APP LOGIC
-
 //NOT MVP
 achivements
 

@@ -29,12 +29,12 @@ model User {
 model Profile {
   id         String   @id @default(uuid())
   avatarPath String   @default("avatar/defaultAvatar.jpg") @map("avatar_path")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  userId     String   @unique @map("user_id")
   firstName  String   @default("") @map("first_name")
   lastName   String   @default("") @map("last_name")
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String   @unique @map("user_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@map("profile")
 }
