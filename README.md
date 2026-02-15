@@ -9,7 +9,9 @@ fix micro loads on the decks preload or chaging directories
 
 cards per session for every desk
 
-TODO: FRONTEND:
+TODO:
+CHANGING EMAIL IF WAS REGISTERED BY PROVIDER (I think banned)
+CHANGING PASSWORD
 implement delete for cards
 develop profile page
 develop settings page()
@@ -34,3 +36,5 @@ BSD 3-Clause License
 Copyright (c) 2023, Open Spaced Repetition
 
 end others
+
+Tech Stack: TypeScript, NestJS, React, PostgreSQL (Prisma + Raw SQL), Docker, AWS S3 (MinIO), Python (integration via child_process).

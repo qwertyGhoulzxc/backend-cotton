@@ -52,6 +52,7 @@ export class UploadService {
   }
 
   public async getSignedLink(path: string) {
+    //TODO: if gonna be new oauth
     if (path.startsWith('https://lh3.googleusercontent.com')) return path;
     return getSignedUrl(
       this.s3Client,

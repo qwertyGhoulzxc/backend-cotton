@@ -4,6 +4,8 @@ import {
   Body,
   Controller,
   Delete,
+  Get,
+  Param,
   Patch,
   UploadedFile,
   UseInterceptors,
@@ -19,6 +21,19 @@ export class ProfileController {
     private readonly profileService: ProfileService,
     private readonly avatarService: AvatarService,
   ) {}
+
+  @Get('get-profile/:username')
+  public async getProfile(
+    @CurrentUser('username') tokenUsername: string,
+    @Param('username') usernameParam: string,
+  ) {
+    const usernameToUse =
+      usernameParam === 'me' ? tokenUsername : usernameParam;
+    return this.profileService.getProfilePage(
+      usernameToUse,
+      usernameParam === 'me',
+    );
+  }
 
   @Patch('upload-avatar')
   @UseInterceptors(FileInterceptor('avatar'))

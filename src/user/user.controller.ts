@@ -1,5 +1,5 @@
 import { UserWithResetPasswordCode } from '@app/@types';
-import { CurrentUser, Public, UserAgent } from '@app/common/decorators';
+import { Public, UserAgent } from '@app/common/decorators';
 import { ThrottlerGuard } from '@app/common/guards';
 import { maskEmail } from '@app/common/utils';
 import { validateIsUsernameOrEmail } from '@app/common/validators';
@@ -26,6 +26,7 @@ import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
 import { plainToClass } from 'class-transformer';
 import { Response } from 'express';
+import { CurrentUser } from './../../libs/common/src/decorators/current-user.decorator';
 import {
   IsValidResetPasswordCode as IsValidCodeDto,
   ChangePasswordByCodeDto as ResetPasswordByCodeDto,
@@ -46,11 +47,6 @@ export class UserController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Get('get-me')
-  public async getMe(@CurrentUser() user: JwtPayload) {
-    return this.userService.findOne(user.id);
-  }
-
   @Delete(':id')
   public async deleteUser(
     @Param('id', ParseUUIDPipe) id: string,
@@ -62,13 +58,12 @@ export class UserController {
   // NOTE: IsActivatedGuard removed as per user instruction "doesnt use it"
   @UseInterceptors(ClassSerializerInterceptor)
   @UsePipes(new ValidationPipe())
-  @Patch('update-user')
-  public async updateUser(
-    @CurrentUser() user: JwtPayload,
+  @Patch('change-user-data')
+  public async changeUserData(
+    @CurrentUser('id') userId: string,
     @Body() dto: UpdateUserDto,
   ) {
-    // Adapter for existing service method signature
-    const _user = await this.userService.changeUserData(dto, user.id);
+    const _user = await this.userService.changeUserData(dto, userId);
     return plainToClass(UserResponse, _user);
   }
 

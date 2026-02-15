@@ -15,6 +15,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { UserModule } from './user/user.module';
 import { UploadModule } from './upload/upload.module';
 import { ProfileModule } from './profile/profile.module';
+import { StatsModule } from './stats/stats.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ProfileModule } from './profile/profile.module';
     CronModule,
     UploadModule,
     ProfileModule,
+    StatsModule,
   ],
   controllers: [],
   providers: [
