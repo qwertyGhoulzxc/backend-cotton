@@ -1,6 +1,25 @@
 version: '3.8'
 
 services:
+  api:
+    container_name: cotton_api_container
+    build: 
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    env_file:
+      - ../.env           # main env
+    environment:
+      - PYTHON_EXECUTABLE=python
+      - PYTHON_SCRIPT_PATH=./python/train_weights.py
+    ports:
+      - "3000:3000"
+    networks:
+      - cotton_network    
   postgres:
     container_name: cotton_postgres_container
     build: 
