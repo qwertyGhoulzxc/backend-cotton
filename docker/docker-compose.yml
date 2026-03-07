@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   api:
-    container_name: cotton_api_container
-    build: 
+    container_name: lateowl_api_container
+    build:
       context: ..
       dockerfile: Dockerfile
     restart: unless-stopped
@@ -19,11 +19,9 @@ services:
     ports:
       - "3000:3000"
     networks:
-      - cotton_network    
+      - lateowl_network
   postgres:
-    container_name: cotton_postgres_container
-    build: 
-      context: ./postgres/postgres 
+    container_name: lateowl_postgres_container
     image: postgres:17
     restart: unless-stopped
     env_file:
@@ -34,14 +32,14 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       PGDATA: ${PGDATA}
     volumes:
-      - cotton_postgres_data:${PGDATA}
+      - lateowl_postgres_data:${PGDATA}
+      - ./postgres/postgres/install-uuid.sql:/docker-entrypoint-initdb.d/install-uuid.sql
     ports:
       - "5433:5432"
     networks:
-      - cotton_network
-      
+      - lateowl_network
   pgadmin:
-    container_name: cotton_pgadmin_container
+    container_name: lateowl_pgadmin_container
     image: dpage/pgadmin4:latest
     restart: unless-stopped
     depends_on:
@@ -52,11 +50,11 @@ services:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     volumes:
-      - cotton_pgadmin_data:/var/lib/pgadmin
+      - lateowl_pgadmin_data:/var/lib/pgadmin
     ports:
       - "5050:80"
     networks:
-      - cotton_network
+      - lateowl_network
 
   # --- STORAGE SECTION ---
   minio:
@@ -80,26 +78,26 @@ services:
       timeout: 5s
       retries: 3
     networks:
-      - cotton_network
+      - lateowl_network
 
   # --- CACHE SECTION ---
   redis:
-    container_name: cotton_redis_container
+    container_name: lateowl_redis_container
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379" 
+      - "6379:6379"
     volumes:
-      - cotton_redis_data:/data 
+      - lateowl_redis_data:/data
     networks:
-      - cotton_network 
+      - lateowl_network
 
 networks:
-  cotton_network:
+  lateowl_network:
     driver: bridge
 
 volumes:
-  cotton_postgres_data:
-  cotton_pgadmin_data:
+  lateowl_postgres_data:
+  lateowl_pgadmin_data:
   minio_data:
-  cotton_redis_data: 
+  lateowl_redis_data:
