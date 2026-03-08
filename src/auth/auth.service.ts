@@ -57,10 +57,11 @@ export class AuthService {
       where: { userId: newUser.id },
     });
     if (activationCode) {
-      await this.mailService.sendActivationMail(
-        newUser.email,
-        activationCode.code,
-      );
+      this.mailService
+        .sendActivationMail(newUser.email, activationCode.code)
+        .catch((err) =>
+          this.logger.error(`Failed to send activation email: ${err.message}`),
+        );
     }
     this.logger.log(`User signed up successfully: ${newUser.id}`);
     return newUser;
@@ -98,10 +99,13 @@ export class AuthService {
       );
 
       if (activationCode) {
-        await this.mailService.sendActivationMail(
-          user.email,
-          activationCode.code,
-        );
+        this.mailService
+          .sendActivationMail(user.email, activationCode.code)
+          .catch((err) =>
+            this.logger.error(
+              `Failed to send activation email: ${err.message}`,
+            ),
+          );
       }
       throw new UnauthorizedException({ id: user.id, email: user.email });
     }
@@ -145,7 +149,11 @@ export class AuthService {
   public async getActivationCode(email: string) {
     this.logger.log(`Requesting activation code for: ${email}`);
     const user = await this.checkUserActivationCode(email);
-    await this.mailService.sendActivationMail(email, user.activationCode.code);
+    this.mailService
+      .sendActivationMail(email, user.activationCode.code)
+      .catch((err) =>
+        this.logger.error(`Failed to send activation email: ${err.message}`),
+      );
     return { email, id: user.id };
   }
 
@@ -195,7 +203,11 @@ export class AuthService {
         this.logger.error(`Failed to upsert activation code: ${error.message}`);
         throw new InternalServerErrorException('Something went wrong');
       });
-    await this.mailService.sendActivationMail(user.email, code);
+    this.mailService
+      .sendActivationMail(user.email, code)
+      .catch((err) =>
+        this.logger.error(`Failed to send activation email: ${err.message}`),
+      );
     throw new BadRequestException(
       'Activation code has expired. Please check email and try again',
     );

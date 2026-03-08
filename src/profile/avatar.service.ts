@@ -13,6 +13,10 @@ export class AvatarService {
     private readonly uploadService: UploadService,
   ) {}
 
+  private isExternalUrl(path: string): boolean {
+    return path.startsWith('http://') || path.startsWith('https://');
+  }
+
   public async updateAvatar(file: Express.Multer.File, userId: string) {
     this.logger.log(`Updating avatar for user: ${userId}`);
     const profile = await this.prismaService.profile.findUnique({
@@ -25,7 +29,10 @@ export class AvatarService {
       throw new NotFoundException('Profile not found');
     }
 
-    if (profile.avatarPath !== S3PATH.DEFAULT_AVATAR) {
+    if (
+      profile.avatarPath !== S3PATH.DEFAULT_AVATAR &&
+      !this.isExternalUrl(profile.avatarPath)
+    ) {
       this.logger.debug(`Deleting old avatar: ${profile.avatarPath}`);
       await this.uploadService.deleteFile(profile.avatarPath);
     }
@@ -69,7 +76,13 @@ export class AvatarService {
       return;
     }
 
-    await this.uploadService.deleteFile(profile.avatarPath);
+    if (this.isExternalUrl(profile.avatarPath)) {
+      this.logger.debug(
+        `Skipping S3 delete for external avatar: ${profile.avatarPath}`,
+      );
+    } else {
+      await this.uploadService.deleteFile(profile.avatarPath);
+    }
 
     await this.prismaService.profile.update({
       where: { userId },

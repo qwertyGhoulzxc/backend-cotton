@@ -2,7 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import validate from 'deep-email-validator';
 
 export const validateEmail = async (email: string) => {
-  const validation = await validate(email);
+  const validation = await validate({
+    email,
+    validateSMTP: false,
+  });
 
   if (!validation.valid)
     throw new BadRequestException(
