@@ -17,12 +17,12 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { TokenService } from '@token/token.service';
 import { Request, Response } from 'express';
 import { lastValueFrom, mergeMap } from 'rxjs';
 import { AuthService } from './auth.service';
 import { ActivateAccountDto, SignInDto, SignUpDto } from './dto';
 import { GoogleGuard } from './guards/google.guard';
-import { Tokens } from './interfaces';
 
 const REFRESH_TOKEN = 'refreshtoken';
 
@@ -33,6 +33,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
     private readonly httpService: HttpService,
+    private readonly tokenService: TokenService,
   ) {}
 
   @Post('sign-up')
@@ -57,7 +58,8 @@ export class AuthController {
         `Can't sign-in with ${JSON.stringify(dto)}`,
       );
 
-    this.setRefreshTokenToCookies(tokens, res);
+    this.tokenService.setRefreshTokenToCookies(tokens, res);
+    res.status(HttpStatus.CREATED).json({ accessToken: tokens.accessToken });
   }
 
   @Post('logout')
@@ -86,7 +88,8 @@ export class AuthController {
     if (!refreshToken) throw new UnauthorizedException();
     const tokens = await this.authService.refreshTokens(refreshToken, agent);
     if (!tokens) throw new UnauthorizedException();
-    this.setRefreshTokenToCookies(tokens, res);
+    this.tokenService.setRefreshTokenToCookies(tokens, res);
+    res.status(HttpStatus.CREATED).json({ accessToken: tokens.accessToken });
   }
 
   @Get('activation-code/:email')
@@ -102,20 +105,6 @@ export class AuthController {
   ) {
     await this.authService.activateAccount(dto);
     return res.sendStatus(HttpStatus.OK);
-  }
-
-  private setRefreshTokenToCookies(tokens: Tokens, res: Response) {
-    if (!tokens) {
-      throw new UnauthorizedException();
-    }
-    res.cookie(REFRESH_TOKEN, tokens.refreshToken.token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      expires: new Date(tokens.refreshToken.exp),
-      secure: this.configService.get('NODE_ENV', 'dev') === 'prod',
-      path: '/',
-    });
-    res.status(HttpStatus.CREATED).json({ accessToken: tokens.accessToken });
   }
 
   @UseGuards(GoogleGuard)
@@ -152,7 +141,7 @@ export class AuthController {
       httpOnly: true,
       sameSite: 'lax',
       expires: new Date(refreshToken.exp),
-      secure: true,
+      secure: this.configService.get('NODE_ENV', 'dev') === 'prod',
       path: '/',
     });
 

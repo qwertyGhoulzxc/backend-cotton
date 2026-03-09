@@ -13,16 +13,14 @@ import {
   Logger,
   UnauthorizedException,
 } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
-import { Provider, Token, User } from '@prisma/client';
+import { Provider, User } from '@prisma/client';
 import { PrismaService } from '@prisma/prisma.service';
+import { TokenService, Tokens } from '@token/token.service';
 import { UserService } from '@user/user.service';
 import { compareSync } from 'bcrypt';
-import { add, isBefore } from 'date-fns';
+import { isBefore } from 'date-fns';
 import { Response } from 'express';
-import { v4 } from 'uuid';
 import { ActivateAccountDto, SignInDto, SignUpDto } from './dto';
-import { Tokens } from './interfaces';
 
 @Injectable()
 export class AuthService {
@@ -31,8 +29,8 @@ export class AuthService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly userService: UserService,
-    private readonly jwtService: JwtService,
     private readonly mailService: MailService,
+    private readonly tokenService: TokenService,
   ) {}
 
   public async singUp(dto: SignUpDto) {
@@ -111,7 +109,7 @@ export class AuthService {
     }
 
     this.logger.log(`User signed in successfully: ${user.id}`);
-    return this.generateTokens(user, agent);
+    return this.tokenService.generateTokens(user, agent);
   }
 
   public async refreshTokens(
@@ -138,12 +136,11 @@ export class AuthService {
     }
     const user = await this.userService.findOne(token.userId);
     this.logger.log(`Tokens refreshed successfully for user: ${user.id}`);
-    return this.generateTokens(user, agent);
+    return this.tokenService.generateTokens(user, agent);
   }
 
   public async deleteRefreshToken(token: string) {
-    this.logger.log(`Deleting refresh token`);
-    return this.prismaService.token.deleteMany({ where: { token } });
+    return this.tokenService.deleteRefreshToken(token);
   }
 
   public async getActivationCode(email: string) {
@@ -245,38 +242,6 @@ export class AuthService {
     return user;
   }
 
-  private async generateTokens(user: User, agent: string): Promise<Tokens> {
-    const accessToken =
-      'Bearer ' +
-      this.jwtService.sign({
-        id: user.id,
-        username: user.username,
-        isActivated: user.isActivated,
-      });
-    const refreshToken = await this.getRefreshToken(user.id, agent);
-    return { accessToken, refreshToken };
-  }
-
-  private async getRefreshToken(userId: string, agent: string): Promise<Token> {
-    const _token = await this.prismaService.token.findFirst({
-      where: { userId, userAgent: agent },
-    });
-    const token = _token?.token ?? '';
-    return this.prismaService.token.upsert({
-      where: { token },
-      update: {
-        token: v4(),
-        exp: add(new Date(), { months: 1 }),
-      },
-      create: {
-        token: v4(),
-        exp: add(new Date(), { months: 1 }),
-        userId,
-        userAgent: agent,
-      },
-    });
-  }
-
   public async googleAuth(
     email: string,
     agent: string,
@@ -289,7 +254,7 @@ export class AuthService {
       this.logger.log(
         `Google Auth: User exists, generating tokens for ${userExist.id}`,
       );
-      return this.generateTokens(userExist, agent);
+      return this.tokenService.generateTokens(userExist, agent);
     }
 
     const username = generateUniqueUsername();
@@ -317,6 +282,6 @@ export class AuthService {
     }
 
     this.logger.log(`Google Auth: User created successfully ${user.id}`);
-    return this.generateTokens(user, agent);
+    return this.tokenService.generateTokens(user, agent);
   }
 }

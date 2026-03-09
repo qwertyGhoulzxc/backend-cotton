@@ -8,22 +8,22 @@ import { MailService } from '@mail/mail.service';
 import {
   BadRequestException,
   Body,
-  ClassSerializerInterceptor,
   Controller,
   Delete,
   Get,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
   Post,
   Res,
   UseGuards,
-  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
+import { TokenService } from '@token/token.service';
 import { plainToClass } from 'class-transformer';
 import { Response } from 'express';
 import { CurrentUser } from './../../libs/common/src/decorators/current-user.decorator';
@@ -45,6 +45,7 @@ export class UserController {
     private readonly resetPasswordService: ResetPasswordService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly tokenService: TokenService,
   ) {}
 
   @Delete(':id')
@@ -56,15 +57,26 @@ export class UserController {
   }
 
   // NOTE: IsActivatedGuard removed as per user instruction "doesnt use it"
-  @UseInterceptors(ClassSerializerInterceptor)
   @UsePipes(new ValidationPipe())
   @Patch('change-user-data')
   public async changeUserData(
     @CurrentUser('id') userId: string,
     @Body() dto: UpdateUserDto,
+    @UserAgent() agent: string,
+    @Res() res: Response,
   ) {
-    const _user = await this.userService.changeUserData(dto, userId);
-    return plainToClass(UserResponse, _user);
+    const user = await this.userService.changeUserData(dto, userId);
+
+    // Invalidate all sessions and issue new tokens
+    await this.tokenService.deleteAllUserTokens(userId);
+    const tokens = await this.tokenService.generateTokens(user, agent);
+
+    this.tokenService.setRefreshTokenToCookies(tokens, res);
+
+    return res.status(HttpStatus.OK).json({
+      user: plainToClass(UserResponse, user),
+      accessToken: tokens.accessToken,
+    });
   }
 
   @UsePipes(new ValidationPipe())

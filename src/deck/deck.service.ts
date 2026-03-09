@@ -222,6 +222,18 @@ export class DeckService {
       );
       throw new BadRequestException('No such user with this deck');
     }
+
+    // Clean up empty category
+    const remainingDecks = await this.prismaService.deck.count({
+      where: { deckCategoryId: deck.deckCategoryId },
+    });
+    if (remainingDecks === 0) {
+      this.logger.log(`Category ${deck.deckCategoryId} is empty, deleting it`);
+      await this.prismaService.deckCategory.delete({
+        where: { id: deck.deckCategoryId },
+      });
+    }
+
     this.logger.log(`Deck deleted successfully: ${deckId}`);
     return;
   }

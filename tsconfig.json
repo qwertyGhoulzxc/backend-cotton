@@ -74,6 +74,12 @@
       "@cron/*": [
         "src/cron/*"
       ],
+      "@token": [
+        "src/token"
+      ],
+      "@token/*": [
+        "src/token/*"
+      ],
     }
   }
 }
