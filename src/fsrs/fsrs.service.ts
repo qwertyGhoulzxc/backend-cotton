@@ -206,7 +206,7 @@ export class FsrsService {
     const logPromises = dto.map(({ card, log }) =>
       this.prismaService.fSRSCardLog.create({
         data: {
-          fsrsCardId: card.id,
+          fsrsCardId: card.id, // This is the FSRSCard.id
           ...log,
         },
       }),
